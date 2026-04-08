@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Counter — treem</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0 }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f5f5f7;
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 100vh;
+    }
+    @media (max-width: 700px) {
+      body { grid-template-columns: 1fr; grid-template-rows: auto auto; min-height: unset }
+    }
+
+    /* Demo panel */
+    .demo {
+      display: grid; place-items: center;
+      padding: 2rem;
+    }
+    .card {
+      background: white;
+      border-radius: 16px;
+      padding: 2.5rem 2rem;
+      box-shadow: 0 4px 24px rgba(0,0,0,.08);
+      width: 300px;
+      text-align: center;
+    }
+    .back { display: flex; align-items: center; gap: .4rem; font-size: .82rem; color: #aaa; text-decoration: none; margin-bottom: 1.5rem }
+    .back:hover { color: #666 }
+    .label { font-size: .75rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #999; margin-bottom: 1rem }
+    .count { font-size: 6rem; font-weight: 800; line-height: 1; color: #111; margin-bottom: .4rem; font-variant-numeric: tabular-nums }
+    .derived { font-size: .85rem; color: #aaa; margin-bottom: 2rem }
+    .derived span { color: #666; font-weight: 600 }
+    .buttons { display: flex; gap: .5rem; justify-content: center; margin-bottom: 1.75rem }
+    button { border: none; border-radius: 10px; font-size: .9rem; font-weight: 600; cursor: pointer; transition: opacity .15s, transform .1s; padding: .6rem 1.3rem; font-family: inherit }
+    button:active { transform: scale(.96) }
+    button:disabled { opacity: .3; cursor: default }
+    .btn-dark  { background: #111; color: #fff }
+    .btn-light { background: #eee; color: #111 }
+    hr { border: none; border-top: 1px solid #f0f0f0; margin-bottom: 1.25rem }
+    .step-row { display: flex; align-items: center; gap: .75rem; font-size: .82rem; color: #999 }
+    .step-row span:last-child { font-weight: 700; color: #111; min-width: 1.5rem; text-align: right }
+    input[type="range"] { flex: 1; accent-color: #111; cursor: pointer }
+
+    /* Code panel */
+    .code { padding: 1.5rem; overflow: hidden; display: flex; flex-direction: column }
+    #code-panel { flex: 1; border-radius: 12px; overflow: hidden }
+  </style>
+</head>
+<body>
+  <div class="demo">
+    <div>
+      <a class="back" href="/">← Examples</a>
+      <div class="card">
+        <div class="label">Counter</div>
+        <div class="count" id="count">0</div>
+        <div class="derived">doubled: <span id="doubled">0</span></div>
+        <div class="buttons">
+          <button class="btn-light" id="dec">−</button>
+          <button class="btn-light" id="reset">Reset</button>
+          <button class="btn-dark"  id="inc">+</button>
+        </div>
+        <hr>
+        <div class="step-row">
+          <span>Step</span>
+          <input type="range" id="step" min="1" max="10" value="1">
+          <span id="step-val">1</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="code">
+    <div id="code-panel"></div>
+  </div>
+
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

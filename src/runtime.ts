@@ -14,7 +14,7 @@ export interface Watchable<T> {
 }
 
 type ProgramNodeOf<T> =
-  T extends SetNode                          ? Watchable<void> :
+  T extends SetNode<infer Args>              ? (...args: Args) => void :
   T extends { readonly __exprType: infer U } ? Watchable<U> :
   T extends readonly any[]                   ? Watchable<any> :
   T extends object                           ? Watchable<any> & { [K in Extract<keyof T, string>]: ProgramNodeOf<T[K]> } :

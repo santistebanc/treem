@@ -17,13 +17,13 @@ export type CtxRef<T = any>   = symbol & { readonly __exprType: T }
 export type CalcNode<T = any> = object & { readonly __exprType: T }
 export type ArgNode<T = any>  = object & { readonly __exprType: T }
 export type IffNode<T = any>  = object & { readonly __exprType: T }
-export type SetNode           = object & { readonly __setNode: true }
+export type SetNode<Args extends any[] = []> = object & { readonly __setNode: true; readonly __args: Args }
 export type Expr<T> = T | CtxRef<T> | CalcNode<T> | ArgNode<T> | IffNode<T>
 
 type PlainObj = Record<string, unknown> & { readonly __exprType?: never } & { readonly __setNode?: never }
 
 type Unwrap<T> =
-  T extends SetNode                          ? void :
+  T extends { readonly __setNode: true }     ? void :
   T extends { readonly __exprType: infer U } ? U :
   T
 
@@ -76,8 +76,8 @@ export function iff(cond: any, onTrue: any, onFalse: any = undefined): any {
   return out
 }
 
-export function set(assignments: object): SetNode {
-  return mark({ type: 'set' as const, assignments }) as unknown as SetNode
+export function set<Args extends any[] = []>(assignments: object): SetNode<Args> {
+  return mark({ type: 'set' as const, assignments }) as unknown as SetNode<Args>
 }
 
 export function arg<T = unknown>(index: number): ArgNode<T> {

@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shop — treem</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0 }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 100vh;
+      transition: background .25s, color .25s;
+    }
+    @media (max-width: 800px) {
+      body { grid-template-columns: 1fr; grid-template-rows: auto auto; min-height: unset }
+    }
+
+    :root {
+      --bg: #f0f2f5; --surface: #fff; --border: #e0e0e0;
+      --text: #111;  --muted: #666;   --accent: #5b4fcf;
+      --btn-bg: #eee; --btn-hover: #e0e0e0;
+    }
+
+    /* Demo panel */
+    .demo { display: flex; flex-direction: column; overflow: auto }
+
+    header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: .8rem 1.5rem;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 10; transition: background .25s, border-color .25s;
+    }
+    .back { font-size: .82rem; color: #aaa; text-decoration: none }
+    .back:hover { color: #666 }
+    .logo { font-size: 1rem; font-weight: 700 }
+    .logo span { color: var(--accent) }
+
+    main {
+      padding: 1.25rem;
+      display: grid;
+      grid-template-columns: 1fr 240px;
+      gap: 1rem;
+      align-items: start;
+    }
+    @media (max-width: 600px) { main { grid-template-columns: 1fr } }
+
+    .products { display: flex; flex-direction: column; gap: .75rem }
+    .product-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1rem 1.25rem;
+      display: flex; justify-content: space-between; align-items: center;
+      transition: background .25s, border-color .25s;
+    }
+    .product-info .name  { font-weight: 600; font-size: .9rem }
+    .product-info .price { font-size: .8rem; color: var(--muted); margin-top: .1rem }
+    .product-controls { display: flex; align-items: center; gap: .6rem }
+    .qty-btn { width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; font-size: 1rem; font-weight: 700 }
+    .qty { font-size: 1rem; font-weight: 700; min-width: 1.5rem; text-align: center }
+    .subtotal { font-size: .8rem; color: var(--muted); min-width: 46px; text-align: right }
+
+    .cart {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1rem 1.25rem;
+      position: sticky; top: 57px;
+      transition: background .25s, border-color .25s;
+    }
+    .cart h2 { font-size: .85rem; font-weight: 700; margin-bottom: 1rem }
+    .cart-row { display: flex; justify-content: space-between; font-size: .82rem; color: var(--muted); margin-bottom: .5rem }
+    .cart-row.savings { color: var(--accent); font-weight: 500 }
+    .cart-total { display: flex; justify-content: space-between; font-weight: 700; font-size: .95rem; padding-top: .75rem; border-top: 1px solid var(--border); margin-top: .4rem; margin-bottom: 1rem }
+    .coupon-label { font-size: .72rem; color: var(--muted); margin-bottom: .35rem }
+    .coupon-row { display: flex; gap: .4rem; margin-bottom: .35rem }
+    .coupon-row input {
+      flex: 1; padding: .45rem .65rem; border: 1px solid var(--border);
+      border-radius: 7px; font-size: .8rem; background: var(--bg); color: var(--text);
+      outline: none; font-family: inherit; text-transform: uppercase; letter-spacing: .05em;
+      transition: border-color .15s, background .25s;
+    }
+    .coupon-row input:focus { border-color: var(--accent) }
+    .coupon-hint { font-size: .7rem; color: var(--muted) }
+    .coupon-hint span { font-weight: 600 }
+
+    button {
+      border: none; border-radius: 7px; font-family: inherit; font-size: .82rem;
+      font-weight: 600; cursor: pointer; background: var(--btn-bg); color: var(--text);
+      transition: background .15s, opacity .15s, transform .1s;
+    }
+    button:hover  { background: var(--btn-hover) }
+    button:active { transform: scale(.95) }
+
+    /* Code panel */
+    .code { background: #18181b; padding: 1.5rem; overflow: hidden; display: flex; flex-direction: column }
+    #code-panel { flex: 1; border-radius: 12px; overflow: hidden }
+  </style>
+</head>
+<body>
+  <div class="demo">
+    <header>
+      <a class="back" href="/">← Examples</a>
+      <div class="logo">☕ Brew<span>Shop</span></div>
+      <button id="toggle-theme">☾ Dark</button>
+    </header>
+
+    <main>
+      <div class="products">
+        <div class="product-card">
+          <div class="product-info">
+            <div class="name">Coffee Blend</div>
+            <div class="price">$4.99 each</div>
+          </div>
+          <div class="product-controls">
+            <button class="qty-btn" id="dec-0">−</button>
+            <span class="qty" id="qty-0">0</span>
+            <button class="qty-btn" id="inc-0">+</button>
+            <span class="subtotal" id="sub-0">$0.00</span>
+          </div>
+        </div>
+
+        <div class="product-card">
+          <div class="product-info">
+            <div class="name">Premium Tea</div>
+            <div class="price">$12.99 each</div>
+          </div>
+          <div class="product-controls">
+            <button class="qty-btn" id="dec-1">−</button>
+            <span class="qty" id="qty-1">0</span>
+            <button class="qty-btn" id="inc-1">+</button>
+            <span class="subtotal" id="sub-1">$0.00</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="cart">
+        <h2>Cart</h2>
+        <div class="cart-row"><span>Subtotal</span><span id="cart-subtotal">$0.00</span></div>
+        <div class="cart-row savings" id="savings-row" style="display:none">
+          <span>Discount</span><span id="cart-savings"></span>
+        </div>
+        <div class="cart-total"><span>Total</span><span id="cart-total">$0.00</span></div>
+
+        <div class="coupon-label">Coupon code</div>
+        <div class="coupon-row">
+          <input type="text" id="coupon-input" placeholder="SAVE10">
+          <button id="coupon-apply">Apply</button>
+        </div>
+        <div class="coupon-hint">Try: <span>SAVE10</span> · <span>SAVE20</span> · <span>HALF</span></div>
+      </div>
+    </main>
+  </div>
+
+  <div class="code">
+    <div id="code-panel"></div>
+  </div>
+
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

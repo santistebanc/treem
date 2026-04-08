@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>treem examples</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0 }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f5f5f7;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+    }
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 2.5rem 2rem;
+      box-shadow: 0 4px 24px rgba(0,0,0,.08);
+      width: 360px;
+    }
+    h1 { font-size: 1.4rem; font-weight: 800; margin-bottom: .5rem }
+    p  { font-size: .9rem; color: #888; margin-bottom: 2rem }
+    ul { list-style: none; display: flex; flex-direction: column; gap: .6rem }
+    a {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: .9rem 1.1rem;
+      border-radius: 10px;
+      background: #fafafa;
+      border: 1px solid #eee;
+      text-decoration: none;
+      color: #111;
+      font-weight: 600;
+      font-size: .95rem;
+      transition: background .15s;
+    }
+    a:hover { background: #f0f0f0 }
+    .tag {
+      font-size: .72rem;
+      font-weight: 600;
+      padding: .2rem .5rem;
+      border-radius: 5px;
+      background: #eee;
+      color: #666;
+    }
+    .tag.react { background: #e8f4fd; color: #0969da }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>treem examples</h1>
+    <p>Pick an example to explore.</p>
+    <ul>
+      <li>
+        <a href="/counter/">
+          Counter
+          <span class="tag">vanilla</span>
+        </a>
+      </li>
+      <li>
+        <a href="/shop/">
+          Brew Shop
+          <span class="tag">vanilla</span>
+        </a>
+      </li>
+      <li>
+        <a href="/react-todo/">
+          Todo
+          <span class="tag react">React</span>
+        </a>
+      </li>
+    </ul>
+  </div>
+</body>
+</html>

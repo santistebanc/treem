@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Todo — treem + React</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0 }
+    html, body, #root { height: 100% }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 100vh;
+    }
+    @media (max-width: 700px) {
+      body { grid-template-columns: 1fr; grid-template-rows: auto auto; min-height: unset }
+    }
+    #root { background: #f5f5f7; overflow: auto }
+    #code { background: #18181b; padding: 1.5rem; display: flex; flex-direction: column }
+    #code-panel { flex: 1; border-radius: 12px; overflow: hidden }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <div id="code">
+    <div id="code-panel"></div>
+  </div>
+  <script type="module" src="./src/main.tsx"></script>
+</body>
+</html>
