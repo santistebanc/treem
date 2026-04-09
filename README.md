@@ -22,7 +22,7 @@ const app = run({
   [lang]:  'en',
 
   toggleTheme: set({ [theme]: iff(isLight, 'dark', 'light') }),
-  setLang:     set({ [lang]: arg<'en' | 'es'>(0) }),
+  setLang:     set<['en' | 'es']>({ [lang]: arg<'en' | 'es'>(0) }),
 
   // iff over objects distributes key-by-key — each key is its own reactive node
   ui: iff(isDark, {
@@ -73,7 +73,7 @@ const x = ctx<number>('x')
   val:     x,                          // read x directly — no calc wrapper needed
   doubled: calc(n => n * 2, [x]),     // pass x to a calc
   label:   iff(x, 'non-zero', 'zero'), // use x as an iff condition
-  copy:    set({ [x]: x }),            // read x inside a set assignment
+  copy:    set({ [x]: x }),              // read x inside a set assignment
 }
 ```
 
@@ -190,26 +190,21 @@ const swap = set({ [a]: b, [b]: a })
 
 ### `arg` — action argument
 
-Reads a runtime argument passed when an action is called. Combine with `set` to make parameterized actions:
+Reads a runtime argument passed when an action is called. Combine with `set` to make parameterized actions. The type parameter on `set<Args>` declares the full argument tuple:
 
 ```ts
 const price = ctx<number>('price')
 
 const app = {
   [price]: 10,
-  setPrice: set({ [price]: arg<number>(0) }),
-  addToPrice: set({ [price]: calc((p, n) => p + n, [price, arg<number>(0)]) }),
+  setPrice:   set<[number]>({ [price]: arg<number>(0) }),
+  addToPrice: set<[number]>({ [price]: calc((p, n) => p + n, [price, arg<number>(0)]) }),
+  setRange:   set<[number, number]>({ [min]: arg<number>(0), [max]: arg<number>(1) }),
 }
 
 const store = run(app)
-store.setPrice(42)      // price → 42
-store.addToPrice(8)     // price → 50
-```
-
-Multiple args by index:
-
-```ts
-const setRange = set({ [min]: arg<number>(0), [max]: arg<number>(1) })
+store.setPrice(42)        // price → 42
+store.addToPrice(8)       // price → 50
 store.setRange(0, 100)
 ```
 
@@ -241,7 +236,7 @@ p2.val()  // 0  — unaffected
 
 ### `watch` — reactive subscription
 
-Subscribes to any node in the program. The callback fires with the new resolved value whenever any dependency changes. Returns an unsubscribe function.
+Subscribes to any node in the program. The callback fires immediately with the current value, then again whenever any dependency changes. Returns an unsubscribe function.
 
 ```ts
 import { watch } from 'treem'
@@ -284,10 +279,10 @@ const name = ctx<string>('name')
 const app = {
   [name]: 'Guest',                            // mutable state
 
-  greeting: calc(n => `Hello, ${n}!`, [name]), // derived value
-  rename: set({ [name]: arg<string>(0) }),      // parameterized action
+  greeting: calc(n => `Hello, ${n}!`, [name]),   // derived value
+  rename: set<[string]>({ [name]: arg<string>(0) }), // parameterized action
 
-  cart: {                                      // nested scope
+  cart: {                                        // nested scope
     [qty]: 0,
     total: calc(q => q * 9.99, [qty]),
     add:   set({ [qty]: calc(q => q + 1, [qty]) }),
@@ -342,14 +337,14 @@ const app = {
   regular: {
     [qty]: 0,
     total: calc((p, q) => p * q, [price, qty]),  // reads ancestor price ✓
-    add:   set({ [qty]: calc(q => q + 1, [qty]) }),
+    add:   set(() => ({ [qty]: calc(q => q + 1, [qty]) })),
   },
 
   sale: {
     [price]: 4.99,         // overrides price for this scope only
     [qty]: 0,
     total: calc((p, q) => p * q, [price, qty]),  // uses the overridden price ✓
-    add:   set({ [qty]: calc(q => q + 1, [qty]) }),
+    add:   set(() => ({ [qty]: calc(q => q + 1, [qty]) })),
   },
 }
 ```
@@ -373,7 +368,7 @@ const app = {
 
   cart: {
     [qty]: iff(isPro, 0, 0),  // reactive: resets to 0 whenever isPro changes
-    add:   set({ [qty]: calc(q => q + 1, [qty]) }),
+    add:   set(() => ({ [qty]: calc(q => q + 1, [qty]) })),
   },
 }
 
@@ -387,12 +382,42 @@ Propagation is efficient: if a dep changes but the computed output stays the sam
 
 ---
 
+## Advanced
+
+### `VALUE` — whole-scope value
+
+When `iff` distributes over objects, it creates a scope where each key is an independent reactive node. In the mixed case — one branch is an object, the other is a scalar — the scalar is stored on the scope under the `VALUE` symbol. Reading the scope as a whole (calling it as a function) returns `VALUE` when its branch is active, otherwise resolves the object keys as usual.
+
+You can import `VALUE` to read this directly when you need it:
+
+```ts
+import { ctx, iff, set, run, VALUE } from 'treem'
+
+const flag = ctx<boolean>('flag')
+
+const store = run({
+  [flag]: false,
+  s: iff(flag, { x: 1, y: 2 }, 'fallback'),
+})
+
+store.s()           // 'fallback'  — scalar branch active, returns VALUE
+store.s.x()         // undefined   — x is undefined when scalar branch is active
+
+// flag → true
+store.s()           // { x: 1, y: 2 }
+store.s.x()         // 1
+```
+
+This is mostly an implementation detail you won't need to reach for — calling the scope as a function handles it automatically. It becomes useful when building abstractions over `iff` results that need to distinguish between the scalar and object branches.
+
+---
+
 ## Comprehensive example
 
 A multi-step signup wizard that puts every feature to work: nested scopes, reactive formulas, distributed conditionals, parameterized actions, arrays, and watchers.
 
 ```ts
-import { ctx, calc, iff, set, arg, run, watch, Expr } from 'treem'
+import { ctx, calc, iff, set, run, watch, type Expr } from 'treem'
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
@@ -428,8 +453,8 @@ const wizard = run({
 
   // ── Step 1: personal details ─────────────────────────────────────────────────
   details: {
-    setName:  set({ [name]:  arg<string>(0) }),
-    setEmail: set({ [email]: arg<string>(0) }),
+    setName:  set<[string]>({ [name]:  arg<string>(0) }),
+    setEmail: set<[string]>({ [email]: arg<string>(0) }),
 
     errors: {
       name:  iff(nameOk,  '',          'Name is required'),
@@ -453,7 +478,7 @@ const wizard = run({
     cta:       'Get started',
   }),
 
-  setPlan: set({ [plan]: arg<'free' | 'pro'>(0) }),
+  setPlan: set<['free' | 'pro']>({ [plan]:   arg<'free' | 'pro'>(0) }),
   agree:   set({ [agreed]: true }),
 
   // ── Step 3: review ───────────────────────────────────────────────────────────

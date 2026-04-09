@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { ctx, calc, iff, set, arg, run, watch, Expr } from './src/index'
+import { ctx, calc, iff, set, arg, run, watch, type Expr } from './src/index'
 
 let passed = 0
 let failed = 0
@@ -145,15 +145,15 @@ test('cond can be an iff node', () => {
   const b = ctx<boolean>('b')
   const p = run({
     [a]: true, [b]: false,
-    val: iff(iff(a, b, true), 'yes', 'no'),  // cond = b when a=true, true when a=false
+    val: iff(iff(a, b, true), 'yes', 'no'),
     flipA: set({ [a]: calc(v => !v, [a]) }),
     flipB: set({ [b]: calc(v => !v, [b]) }),
   })
-  assert.equal(p.val(), 'no')   // a=true → cond=b=false → 'no'
+  assert.equal(p.val(), 'no')
   p.flipB()
-  assert.equal(p.val(), 'yes')  // a=true → cond=b=true → 'yes'
+  assert.equal(p.val(), 'yes')
   p.flipA()
-  assert.equal(p.val(), 'yes')  // a=false → cond=true → 'yes'
+  assert.equal(p.val(), 'yes')
 })
 
 test('branches can be calc nodes', () => {
@@ -215,7 +215,7 @@ test('onFalse omitted — watch fires when value becomes undefined', () => {
   const seen: any[] = []
   watch(p.val, v => seen.push(v))
   p.off()
-  assert.deepEqual(seen, [undefined])
+  assert.deepEqual(seen, ['hi', undefined])
 })
 
 // ─── iff — object distribution ────────────────────────────────────────────────
@@ -252,7 +252,6 @@ test('key only in false branch → undefined when true', () => {
 test('one object branch one scalar — value node accessible', () => {
   const flag = ctx<boolean>('flag')
   const p = run({ [flag]: false, s: iff(flag, { val: 1 }, 'fallback') })
-  // when false → the scalar 'fallback' is the [VALUE] node on the scope
   assert.equal(p.s(), 'fallback')
 })
 
@@ -294,12 +293,11 @@ test('distributed iff with set actions', () => {
 test('nested iff — both branches are object iffs, keys distribute flat', () => {
   const a = ctx<boolean>('a')
   const b = ctx<boolean>('b')
-  // iff(b, {...}, {...}) is a plain object — outer iff distributes over it
   const p = run({
     [a]: true, [b]: false,
     s: iff(a, { x: 1 }, iff(b, { x: 2 }, { x: 3 }))
   })
-  assert.equal((p.s as any).x(), 1)  // a=true → 1
+  assert.equal((p.s as any).x(), 1)
 })
 
 test('nested iff — outer false branch resolves through inner', () => {
@@ -311,11 +309,11 @@ test('nested iff — outer false branch resolves through inner', () => {
     flipA: set({ [a]: calc(v => !v, [a]) }),
     flipB: set({ [b]: calc(v => !v, [b]) }),
   })
-  assert.equal((p.s as any).x(), 2)  // a=false, b=true → 2
+  assert.equal((p.s as any).x(), 2)
   p.flipB()
-  assert.equal((p.s as any).x(), 3)  // a=false, b=false → 3
+  assert.equal((p.s as any).x(), 3)
   p.flipA()
-  assert.equal((p.s as any).x(), 1)  // a=true → 1
+  assert.equal((p.s as any).x(), 1)
 })
 
 test('nested iff — disjoint keys across branches', () => {
@@ -326,10 +324,10 @@ test('nested iff — disjoint keys across branches', () => {
 
   const p1 = tree(false, true)
   assert.equal((p1.s as any).x(), 2)
-  assert.equal((p1.s as any).y(), 9)    // a=false, b=true → y present
+  assert.equal((p1.s as any).y(), 9)
 
   const p2 = tree(true, true)
-  assert.equal((p2.s as any).y(), undefined)  // a=true → outer true branch has no y
+  assert.equal((p2.s as any).y(), undefined)
 })
 
 test('nested iff — scalar inside object branch', () => {
@@ -339,7 +337,7 @@ test('nested iff — scalar inside object branch', () => {
     [a]: true, [b]: false,
     s: iff(a, { x: iff(b, 'yes', 'no') }, { x: 'other' })
   })
-  assert.equal((p.s as any).x(), 'no')   // a=true, b=false → 'no'
+  assert.equal((p.s as any).x(), 'no')
 })
 
 test('nested iff — scalar outer true, object outer false (mixed branch)', () => {
@@ -349,9 +347,7 @@ test('nested iff — scalar outer true, object outer false (mixed branch)', () =
     [a]: false, [b]: true,
     s: iff(a, 'scalar', iff(b, { x: 1 }, { x: 2 }))
   })
-  // a=false → resolve through VALUE: fallback to inner iff object
   assert.equal((p.s as any).x(), 1)
-  // a=true → resolve as scalar
   const p2 = run({ [a]: true, [b]: true, s: iff(a, 'scalar', iff(b, { x: 1 }, { x: 2 })) })
   assert.equal(p2.s(), 'scalar')
 })
@@ -374,23 +370,22 @@ test('multiple assignments are computed before any are applied (atomic swap)', (
   const b = ctx<number>('b')
   const p = run({ [a]: 1, [b]: 2, va: calc(n => n, [a]), vb: calc(n => n, [b]), swap: set({ [a]: b, [b]: a }) })
   p.swap()
-  assert.equal(p.va(), 2) // a got old b
-  assert.equal(p.vb(), 1) // b got old a
+  assert.equal(p.va(), 2)
+  assert.equal(p.vb(), 1)
 })
 
 test('set with same value skips propagation', () => {
   const x = ctx<number>('x')
   const y = ctx<number>('y')
   let yEvals = 0
-  // y is a reactive ctx that depends on x; if x doesn't change, y should not reeval
   const p = run({
     [x]: 5,
     [y]: calc(n => { yEvals++; return n * 2 }, [x]),
     val: calc(n => n, [y]),
-    noop: set({ [x]: 5 }), // sets x to its current value
+    noop: set({ [x]: 5 }),
   })
   yEvals = 0
-  p.noop() // x stays 5 → y should not reeval
+  p.noop()
   assert.equal(yEvals, 0)
 })
 
@@ -414,8 +409,8 @@ section('arg')
 
 test('basic arg passing', () => {
   const x = ctx<number>('x')
-  const p = run({ [x]: 0, val: calc(n => n, [x]), setX: set({ [x]: arg<number>(0) }) })
-  ;(p.setX as any)(42)
+  const p = run({ [x]: 0, val: calc(n => n, [x]), setX: set<[number]>({ [x]: arg<number>(0) }) })
+  p.setX(42)
   assert.equal(p.val(), 42)
 })
 
@@ -425,9 +420,9 @@ test('multiple args', () => {
   const p = run({
     [a]: 0, [b]: 0,
     va: calc(n => n, [a]), vb: calc(n => n, [b]),
-    setAB: set({ [a]: arg<number>(0), [b]: arg<number>(1) })
+    setAB: set<[number, number]>({ [a]: arg<number>(0), [b]: arg<number>(1) })
   })
-  ;(p.setAB as any)(10, 20)
+  p.setAB(10, 20)
   assert.equal(p.va(), 10)
   assert.equal(p.vb(), 20)
 })
@@ -437,11 +432,11 @@ test('arg used inside calc', () => {
   const p = run({
     [x]: 0,
     val: calc(n => n, [x]),
-    addN: set({ [x]: calc((cur, n) => cur + n, [x, arg<number>(0)]) })
+    addN: set<[number]>({ [x]: calc((cur, n) => cur + n, [x, arg<number>(0)]) })
   })
-  ;(p.addN as any)(5)
+  p.addN(5)
   assert.equal(p.val(), 5)
-  ;(p.addN as any)(3)
+  p.addN(3)
   assert.equal(p.val(), 8)
 })
 
@@ -458,11 +453,11 @@ test('args are scoped to action call, do not leak', () => {
   const p = run({
     [a]: 0, [b]: 0,
     va: calc(n => n, [a]), vb: calc(n => n, [b]),
-    setA: set({ [a]: arg<number>(0) }),
-    setB: set({ [b]: arg<number>(0) }),
+    setA: set<[number]>({ [a]: arg<number>(0) }),
+    setB: set<[number]>({ [b]: arg<number>(0) }),
   })
-  ;(p.setA as any)(10)
-  ;(p.setB as any)(20)
+  p.setA(10)
+  p.setB(20)
   assert.equal(p.va(), 10)
   assert.equal(p.vb(), 20)
 })
@@ -504,8 +499,8 @@ test('set targets nearest ancestor from action location', () => {
   assert.equal(p.rootVal(), 0)
   assert.equal(p.child.childVal(), 10)
   p.child.inc()
-  assert.equal(p.rootVal(), 0)    // root x unchanged
-  assert.equal(p.child.childVal(), 11) // child x incremented
+  assert.equal(p.rootVal(), 0)
+  assert.equal(p.child.childVal(), 11)
 })
 
 test('deep nesting resolves ancestor ctx', () => {
@@ -518,7 +513,7 @@ test('sibling ctx is not visible — resolves to undefined', () => {
   const x = ctx<number>('x')
   const p = run({
     left:  { [x]: 10 },
-    right: { val: calc(n => n, [x]) } // x not an ancestor of right
+    right: { val: calc(n => n, [x]) }
   })
   assert.equal(p.right.val(), undefined)
 })
@@ -532,8 +527,8 @@ test('deeply nested action sets correct scope ctx', () => {
   })
   assert.equal(p.a.b.childVal(), 5)
   p.a.b.reset()
-  assert.equal(p.rootVal(), 0)   // root x still 0
-  assert.equal(p.a.b.childVal(), 0) // child x reset
+  assert.equal(p.rootVal(), 0)
+  assert.equal(p.a.b.childVal(), 0)
 })
 
 // ─── reactivity ──────────────────────────────────────────────────────────────
@@ -566,8 +561,8 @@ test('manual set is overwritten when formula dep changes', () => {
   })
   p.child.setX()
   assert.equal(p.child.val(), 99)
-  p.child.toggle()               // active changes → x formula re-runs
-  assert.equal(p.child.val(), 10) // x reset to formula result
+  p.child.toggle()
+  assert.equal(p.child.val(), 10)
 })
 
 test('unchanged ctx value halts propagation chain', () => {
@@ -577,12 +572,12 @@ test('unchanged ctx value halts propagation chain', () => {
   let zEvals = 0
   const p = run({
     [x]: 0,
-    [y]: calc(() => 'fixed', [x]),        // always returns same value despite depending on x
+    [y]: calc(() => 'fixed', [x]),
     [z]: calc((s: string) => { zEvals++; return s.length }, [y]),
     incX: set({ [x]: calc(n => n + 1, [x]) })
   })
   zEvals = 0
-  p.incX() // x changes → y reruns but returns same 'fixed' → z should NOT reeval
+  p.incX()
   assert.equal(zEvals, 0)
 })
 
@@ -618,6 +613,14 @@ test('multiple ctxs changing in one set — all dependents update', () => {
 
 section('watch')
 
+test('fires immediately with current value on subscribe', () => {
+  const x = ctx<number>('x')
+  const p = run({ [x]: 5, val: calc(n => n * 2, [x]) })
+  const seen: number[] = []
+  watch(p.val, v => seen.push(v))
+  assert.deepEqual(seen, [10])
+})
+
 test('callback fires with new value on change', () => {
   const x = ctx<number>('x')
   const p = run({ [x]: 0, val: calc(n => n * 2, [x]), inc: set({ [x]: calc(n => n + 1, [x]) }) })
@@ -625,7 +628,7 @@ test('callback fires with new value on change', () => {
   watch(p.val, v => seen.push(v))
   p.inc()
   p.inc()
-  assert.deepEqual(seen, [2, 4])
+  assert.deepEqual(seen, [0, 2, 4])
 })
 
 test('unsubscribe stops callbacks', () => {
@@ -637,8 +640,9 @@ test('unsubscribe stops callbacks', () => {
   unwatch()
   p.inc()
   p.inc()
-  assert.equal(seen.length, 1)
-  assert.equal(seen[0], 1)
+  assert.equal(seen.length, 2)
+  assert.equal(seen[0], 0)
+  assert.equal(seen[1], 1)
 })
 
 test('watch on subtree only fires for subtree deps', () => {
@@ -653,11 +657,11 @@ test('watch on subtree only fires for subtree deps', () => {
   })
   const leftFires: number[] = []
   watch(p.left, v => leftFires.push(v.val))
-  p.incB() // b changes — left should NOT fire
-  assert.equal(leftFires.length, 0)
-  p.incA() // a changes — left fires
+  p.incB()
   assert.equal(leftFires.length, 1)
-  assert.equal(leftFires[0], 1)
+  p.incA()
+  assert.equal(leftFires.length, 2)
+  assert.equal(leftFires[1], 1)
 })
 
 test('watch on leaf value', () => {
@@ -666,7 +670,7 @@ test('watch on leaf value', () => {
   const seen: number[] = []
   watch(p.val, v => seen.push(v))
   p.inc()
-  assert.deepEqual(seen, [2])
+  assert.deepEqual(seen, [1, 2])
 })
 
 test('multiple watchers on same node all fire', () => {
@@ -676,8 +680,8 @@ test('multiple watchers on same node all fire', () => {
   watch(p.val, v => a.push(v))
   watch(p.val, v => b.push(v))
   p.inc()
-  assert.equal(a.length, 1)
-  assert.equal(b.length, 1)
+  assert.equal(a.length, 2)
+  assert.equal(b.length, 2)
 })
 
 test('watch on subtree receives full resolved object', () => {
@@ -702,27 +706,27 @@ test('watch re-tracks deps after branch switch', () => {
   })
   const seen: any[] = []
   watch(p.val, v => seen.push(v))
-  p.incA()   // on a branch → fires
-  assert.equal(seen.length, 1)
-  p.toggle() // switch to b → fires
+  p.incA()
   assert.equal(seen.length, 2)
-  p.incA()   // no longer watching a → should NOT fire
-  assert.equal(seen.length, 2)
-  p.incB()   // now watching b → fires
+  p.toggle()
   assert.equal(seen.length, 3)
+  p.incA()
+  assert.equal(seen.length, 3)
+  p.incB()
+  assert.equal(seen.length, 4)
 })
 
 test('watch does not fire when value unchanged', () => {
   const x = ctx<number>('x')
   const p = run({
     [x]: 5,
-    val: calc(() => 'constant', [x]), // reads x but always returns same value
+    val: calc(() => 'constant', [x]),
     incX: set({ [x]: calc(n => n + 1, [x]) })
   })
   const seen: any[] = []
   watch(p.val, v => seen.push(v))
-  p.incX() // x changes → val re-evals but result unchanged → watcher should not fire
-  assert.equal(seen.length, 0)
+  p.incX()
+  assert.equal(seen.length, 1)
 })
 
 // ─── arrays ───────────────────────────────────────────────────────────────────
@@ -769,8 +773,8 @@ test('watch on array fires when element changes', () => {
   const seen: any[] = []
   watch(p.items as any, v => seen.push(v))
   p.on()
-  assert.equal(seen.length, 1)
-  assert.deepEqual(seen[0], [1])
+  assert.equal(seen.length, 2)
+  assert.deepEqual(seen[1], [1])
 })
 
 // ─── edge cases ───────────────────────────────────────────────────────────────
@@ -853,7 +857,7 @@ test('iff as set assignment value — evaluated at call time', () => {
     assign: set({ [x]: iff(flag, 1, 0) }),
   })
   p.assign()
-  assert.equal(p.val(), 1)  // flag=true → iff resolves to 1
+  assert.equal(p.val(), 1)
 })
 
 test('iff as calc arg', () => {
@@ -863,9 +867,9 @@ test('iff as calc arg', () => {
     val: calc(v => v * 2, [iff(flag, 3, 5)]),
     flip: set({ [flag]: calc(f => !f, [flag]) }),
   })
-  assert.equal(p.val(), 6)   // flag=true → iff=3 → 6
+  assert.equal(p.val(), 6)
   p.flip()
-  assert.equal(p.val(), 10)  // flag=false → iff=5 → 10
+  assert.equal(p.val(), 10)
 })
 
 test('arg inside iff inside set', () => {
@@ -874,10 +878,10 @@ test('arg inside iff inside set', () => {
   const p = run({
     [flag]: true, [x]: 0,
     val:    x,
-    assign: set({ [x]: iff(flag, arg<number>(0), 0) }),
+    assign: set<[number]>({ [x]: iff(flag, arg<number>(0), 0) }),
   })
-  ;(p.assign as any)(42)
-  assert.equal(p.val(), 42)  // flag=true → iff picks arg(0)=42
+  p.assign(42)
+  assert.equal(p.val(), 42)
 })
 
 test('watch on a single key of a distributed iff', () => {
@@ -890,9 +894,9 @@ test('watch on a single key of a distributed iff', () => {
   const seen: number[] = []
   watch((p.s as any).x, (v: number) => seen.push(v))
   p.flip()
-  assert.deepEqual(seen, [1])  // x changed from 3 → 1
+  assert.deepEqual(seen, [3, 1])
   p.flip()
-  assert.deepEqual(seen, [1, 3])  // x changed back to 3
+  assert.deepEqual(seen, [3, 1, 3])
 })
 
 test('chain of reactive ctx formulas — cascade through two resets', () => {
@@ -901,30 +905,30 @@ test('chain of reactive ctx formulas — cascade through two resets', () => {
   const z = ctx<number>('z')
   const p = run({
     [x]: 1,
-    [y]: calc(n => n * 2, [x]),   // reactive: resets when x changes
-    [z]: calc(n => n + 10, [y]),  // reactive: resets when y changes
+    [y]: calc(n => n * 2, [x]),
+    [z]: calc(n => n + 10, [y]),
     val:  z,
     incX: set({ [x]: calc(n => n + 1, [x]) }),
   })
-  assert.equal(p.val(), 12)  // z = (1*2)+10 = 12
+  assert.equal(p.val(), 12)
   p.incX()
-  assert.equal(p.val(), 14)  // z = (2*2)+10 = 14
+  assert.equal(p.val(), 14)
 })
 
-test('iff cond reads arg via calc', () => {
+test('arg inside calc inside set', () => {
   const x = ctx<number>('x')
   const p = run({
     [x]: 0,
     val:    x,
-    assign: set({ [x]: iff(calc((n: number) => n > 0, [arg<number>(0)]), 1, -1) }),
+    assign: set<[number]>({ [x]: iff(calc((n: number) => n > 0, [arg<number>(0)]), 1, -1) }),
   })
-  ;(p.assign as any)(5)
-  assert.equal(p.val(), 1)   // arg=5 > 0 → iff picks 1
-  ;(p.assign as any)(-3)
-  assert.equal(p.val(), -1)  // arg=-3 ≤ 0 → iff picks -1
+  p.assign(5)
+  assert.equal(p.val(), 1)
+  p.assign(-3)
+  assert.equal(p.val(), -1)
 })
 
 // ─── summary ─────────────────────────────────────────────────────────────────
 
 console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed`)
-if (failed > 0) process.exit(1)
+process.exit(failed > 0 ? 1 : 0)

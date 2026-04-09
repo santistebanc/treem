@@ -27,7 +27,7 @@ const store = run({
   inc:     set({ [count]: calc((n, s) => n + s, [count, step]) }),
   dec:     set({ [count]: calc((n, s) => n - s, [count, step]) }),
   reset:   set({ [count]: 0 }),
-  setStep: set<[number]>({ [step]: arg(0) }),
+  setStep: set<[number]>({ [step]: arg<number>(0) }),
 })
 
 // ─── DOM ─────────────────────────────────────────────────────────────────────

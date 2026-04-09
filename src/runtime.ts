@@ -1,10 +1,10 @@
-import { isObj, isNode, ctxSymbols, VALUE, type CtxRef, type SetNode } from './nodes.js'
+import { isObj, isNode, ctxSymbols, VALUE, type SetNode } from './nodes.js'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface Def   { formula: any; value: any; scope: Scope; deps: Set<Def> }
+interface Def { formula: any; value: any; scope: Scope; deps: Set<Def> }
 interface Scope { parent: Scope | null; defs: Map<symbol, Def>; children: Record<string, any>; valueNode?: any }
-interface Watcher { deps: Set<Def>; track: () => any; cb: (value: any) => void; last: any }
+interface Watcher { deps: Set<Def>; track: (subs?: Map<Def, Set<Def | Watcher>>) => any; cb: (value: any) => void; last: any }
 
 const SUBSCRIBE: unique symbol = Symbol('subscribe')
 
@@ -14,20 +14,34 @@ export interface Watchable<T> {
 }
 
 type ProgramNodeOf<T> =
-  T extends SetNode<infer Args>              ? (...args: Args) => void :
+  T extends SetNode<infer Args> ? (...args: Args) => void :
   T extends { readonly __exprType: infer U } ? Watchable<U> :
-  T extends readonly any[]                   ? Watchable<any> :
-  T extends object                           ? Watchable<any> & { [K in Extract<keyof T, string>]: ProgramNodeOf<T[K]> } :
-                                               Watchable<T>
+  T extends readonly any[] ? Watchable<any> :
+  T extends object ? Watchable<any> & { [K in Extract<keyof T, string>]: ProgramNodeOf<T[K]> } :
+  Watchable<T>
 
 type ProgramOf<T extends object> =
-  Watchable<any> & { [K in Extract<keyof T, string>]: ProgramNodeOf<T[K]> }
+  Watchable<any> & { dispose: () => void } & { [K in Extract<keyof T, string>]: ProgramNodeOf<T[K]> }
 
 // ─── Module-level tracking state ─────────────────────────────────────────────
 
 let tracking: Def | null = null
 let watchTracking: Watcher | null = null
 let currentArgs: any[] = []
+
+// ─── Subscriber index helpers ─────────────────────────────────────────────────
+
+type Subscriber = Def | Watcher
+
+function addSub(subscribers: Map<Def, Set<Subscriber>>, dep: Def, sub: Subscriber): void {
+  let s = subscribers.get(dep)
+  if (!s) { s = new Set(); subscribers.set(dep, s) }
+  s.add(sub)
+}
+
+function removeSubs(subscribers: Map<Def, Set<Subscriber>>, oldDeps: Set<Def>, sub: Subscriber): void {
+  for (const dep of oldDeps) subscribers.get(dep)?.delete(sub)
+}
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
@@ -72,59 +86,89 @@ export function run<T extends object>(app: T): ProgramOf<T> {
     if (!isNode(node)) return node
     switch (node.type) {
       case 'ctx': {
-        const def = findDef(node[Symbol.toPrimitive](), scope)
+        const def = findDef(node.sym, scope)
         if (def && tracking) tracking.deps.add(def)
         if (def && watchTracking) watchTracking.deps.add(def)
         return def?.value
       }
-      case 'arg':  return currentArgs[node.index]
+      case 'arg': return currentArgs[node.index]
       case 'calc': return node.fn(...node.args.map((a: any) => eval_(a, scope)))
-      case 'iff':  return eval_(node.cond, scope) ? eval_(node.onTrue, scope) : eval_(node.onFalse, scope)
-      case 'set':  return (...args: any[]) => {
+      case 'iff': return eval_(node.cond, scope) ? eval_(node.onTrue, scope) : eval_(node.onFalse, scope)
+      case 'set': return (...args: any[]) => {
         const prevArgs = currentArgs
         currentArgs = args
         const updates: [Def, any][] = []
-        for (const sym of Object.getOwnPropertySymbols(node.assignments)) {
-          if (!ctxSymbols.has(sym)) continue
-          const def = findDef(sym, scope)
-          if (!def) continue
-          const next = eval_((node.assignments as any)[sym], scope)
-          if (next !== def.value) updates.push([def, next])
+        try {
+          for (const sym of Object.getOwnPropertySymbols(node.assignments)) {
+            if (!ctxSymbols.has(sym)) continue
+            const def = findDef(sym, scope)
+            if (!def) continue
+            const next = eval_((node.assignments as any)[sym], scope)
+            if (next !== def.value) updates.push([def, next])
+          }
+        } catch (err) {
+          console.error('[treem] set aborted:', err)
+          currentArgs = prevArgs
+          return
         }
         for (const [def, next] of updates) def.value = next
-        for (const [def] of updates) propagate(def)
+        if (updates.length > 0) propagate(updates.map(([def]) => def), subscribers)
         currentArgs = prevArgs
       }
     }
   }
 
-  function reeval(def: Def): boolean {
+  function reeval(def: Def, subscribers: Map<Def, Set<Subscriber>>): boolean {
     const prev = tracking
+    const oldDeps = def.deps
     def.deps = new Set()
     tracking = def
     try {
       const next = eval_(def.formula, def.scope)
+      // Update the reverse-dep index: remove from old deps, add to new deps
+      removeSubs(subscribers, oldDeps, def)
+      for (const dep of def.deps) addSub(subscribers, dep, def)
       if (next === def.value) return false
       def.value = next
       return true
+    } catch (err) {
+      console.error('[treem] formula error:', err)
+      removeSubs(subscribers, oldDeps, def)
+      for (const dep of def.deps) addSub(subscribers, dep, def)
+      return false
     } finally {
       tracking = prev
     }
   }
 
-  function propagate(changed: Def): void {
-    const dirty = new Set([changed])
-    for (const d of allDefs) {
-      let hit = false
-      for (const dep of d.deps) if (dirty.has(dep)) { hit = true; break }
-      if (hit && reeval(d)) dirty.add(d)
+  function propagate(changed: Def[], subscribers: Map<Def, Set<Subscriber>>): void {
+    const dirty = new Set<Def>(changed)
+    // Walk only the affected subgraph via the reverse-dep index.
+    // Use a queue so newly-dirtied defs can propagate further.
+    const queue: Def[] = [...changed]
+    for (let i = 0; i < queue.length; i++) {
+      const subs = subscribers.get(queue[i])
+      if (!subs) continue
+      for (const sub of [...subs]) {  // snapshot: reeval modifies the set during iteration
+        if ('formula' in sub) {
+          // sub is a Def
+          if (!dirty.has(sub) && reeval(sub, subscribers)) {
+            dirty.add(sub)
+            queue.push(sub)
+          }
+        }
+      }
     }
+    // Notify watchers whose deps overlap with dirty set
     for (const w of watchers) {
       let hit = false
       for (const dep of w.deps) if (dirty.has(dep)) { hit = true; break }
       if (hit) {
-        const next = w.track()
-        if (next !== w.last) { w.last = next; w.cb(next) }
+        const next = w.track(subscribers)
+        if (next !== w.last) {
+          w.last = next
+          try { w.cb(next) } catch (err) { console.error('[treem] watcher error:', err) }
+        }
       }
     }
   }
@@ -146,45 +190,63 @@ export function run<T extends object>(app: T): ProgramOf<T> {
     return out
   }
 
-  function makeSubscribe(getValue: () => any) {
+  function makeSubscribe(getValue: () => any, subscribers: Map<Def, Set<Subscriber>>) {
     return (cb: (value: any) => void) => {
       const w: Watcher = {
         deps: new Set(),
         last: undefined,
-        track: () => {
+        track: (subs?: Map<Def, Set<Subscriber>>) => {
+          const oldDeps = w.deps
           w.deps = new Set()
           const prev = watchTracking
           watchTracking = w
-          const v = getValue()
-          watchTracking = prev
-          return v
+          try {
+            const result = getValue()
+            // Update reverse-dep index for the watcher
+            const s = subs ?? subscribers
+            removeSubs(s, oldDeps, w)
+            for (const dep of w.deps) addSub(s, dep, w)
+            return result
+          } finally {
+            watchTracking = prev
+          }
         },
         cb,
       }
       w.last = w.track()
+      cb(w.last)
       watchers.add(w)
-      return () => watchers.delete(w)
+      return () => {
+        removeSubs(subscribers, w.deps, w)
+        watchers.delete(w)
+      }
     }
   }
 
-  function callable(node: any, scope: Scope): Watchable<any> {
+  function callable(node: any, scope: Scope, subscribers: Map<Def, Set<Subscriber>>): Watchable<any> {
     if (Array.isArray(node)) {
-      const arr: any = node.map(item => callable(item, scope))
-      arr[SUBSCRIBE] = makeSubscribe(() => resolveNode(node, scope))
+      const arr: any = node.map(item => callable(item, scope, subscribers))
+      arr[SUBSCRIBE] = makeSubscribe(() => resolveNode(node, scope), subscribers)
       return arr
     }
     if (isScope(node)) {
       const fn: any = () => resolve(node)
-      for (const [k, child] of Object.entries(node.children)) fn[k] = callable(child, node)
-      fn[SUBSCRIBE] = makeSubscribe(() => resolve(node))
+      for (const [k, child] of Object.entries(node.children)) fn[k] = callable(child, node, subscribers)
+      fn[SUBSCRIBE] = makeSubscribe(() => resolve(node), subscribers)
       return fn
     }
     const fn: any = (...args: any[]) => { const v = eval_(node, scope); return typeof v === 'function' ? v(...args) : v }
-    fn[SUBSCRIBE] = makeSubscribe(() => eval_(node, scope))
+    fn[SUBSCRIBE] = makeSubscribe(() => eval_(node, scope), subscribers)
     return fn
   }
 
+  const subscribers: Map<Def, Set<Subscriber>> = new Map()
   const root = build(app, null)
-  for (const def of allDefs) reeval(def)
-  return callable(root, root) as unknown as ProgramOf<T>
+  for (const def of allDefs) reeval(def, subscribers)
+  const program: any = callable(root, root, subscribers)
+  program.dispose = () => {
+    for (const w of watchers) removeSubs(subscribers, w.deps, w)
+    watchers.clear()
+  }
+  return program as ProgramOf<T>
 }
