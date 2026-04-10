@@ -716,6 +716,38 @@ test('watch re-tracks deps after branch switch', () => {
   assert.equal(seen.length, 4)
 })
 
+test('cleanup runs before next callback', () => {
+  const x = ctx<number>('x')
+  const p = run({ [x]: 0, val: x, inc: set({ [x]: calc(n => n + 1, [x]) }) })
+  const log: string[] = []
+  watch(p.val, v => {
+    log.push(`start:${v}`)
+    return () => log.push(`cleanup:${v}`)
+  })
+  p.inc()
+  p.inc()
+  assert.deepEqual(log, ['start:0', 'cleanup:0', 'start:1', 'cleanup:1', 'start:2'])
+})
+
+test('cleanup runs on unsubscribe', () => {
+  const x = ctx<number>('x')
+  const p = run({ [x]: 0, val: x })
+  let cleaned = false
+  const unwatch = watch(p.val, () => () => { cleaned = true })
+  assert.equal(cleaned, false)
+  unwatch()
+  assert.equal(cleaned, true)
+})
+
+test('no cleanup when callback returns nothing', () => {
+  const x = ctx<number>('x')
+  const p = run({ [x]: 0, val: x, inc: set({ [x]: calc(n => n + 1, [x]) }) })
+  const seen: number[] = []
+  watch(p.val, v => { seen.push(v) })  // returns undefined — no cleanup
+  p.inc()
+  assert.deepEqual(seen, [0, 1])
+})
+
 test('watch does not fire when value unchanged', () => {
   const x = ctx<number>('x')
   const p = run({

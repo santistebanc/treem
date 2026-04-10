@@ -538,7 +538,7 @@ function propagate(changed: Def[], subscribers: Map<Def, Set<Subscriber>>): void
       const next = w.track(subscribers)
       if (next !== w.last) {
         w.last = next
-        try { w.cb(next) } catch (err) { console.error('[treem] watcher error:', err) }
+        try { w.cleanup?.(); const r = w.cb(next); w.cleanup = typeof r === 'function' ? r : undefined } catch (err) { console.error('[treem] watcher error:', err) }
       }
     }
   }
@@ -627,11 +627,13 @@ function makeSubscribe(getValue: () => any, subscribers: Map<Def, Set<Subscriber
       },
       cb,
     }
-    w.last = w.track()   // evaluate immediately, record deps
-    cb(w.last)           // fire immediately with current value
+    w.last = w.track()                              // evaluate immediately, record deps
+    const r = cb(w.last)                            // fire immediately with current value
+    w.cleanup = typeof r === 'function' ? r : undefined
     watchers.add(w)
     return () => {
-      removeSubs(subscribers, w.deps, w)   // clean up reverse-dep index
+      w.cleanup?.()                                 // run final cleanup on unsubscribe
+      removeSubs(subscribers, w.deps, w)            // clean up reverse-dep index
       watchers.delete(w)
     }
   }
@@ -651,7 +653,9 @@ case 'ctx': {
 
 Both pointers can be non-null at the same time — a watcher tracks while reading from ctx nodes that are also deps of defs.
 
-Calling the returned unsubscribe function removes the watcher from `watchers` and cleans up its entries from the reverse-dep index so those defs no longer hold a reference to it. `dispose()` on the program clears all watchers and their index entries at once:
+The callback can optionally return a cleanup function. It is stored on `w.cleanup` and called before each subsequent `cb` invocation (so the previous side effect is torn down before the next one starts) and on unsubscribe. If the callback returns a non-function, the cleanup field stays `undefined`.
+
+Calling the returned unsubscribe function runs the latest cleanup, removes the watcher from `watchers`, and cleans up its entries from the reverse-dep index so those defs no longer hold a reference to it. `dispose()` on the program clears all watchers and their index entries at once:
 
 ```ts
 program.dispose = () => {
@@ -775,7 +779,7 @@ propagate(changed[], subscribers)
     for w of watchers:
       if any dep of w is in dirty:
         next = w.track(subscribers)   re-evaluate + re-record deps + update index
-        if next !== w.last: w.last = next; w.cb(next)
+        if next !== w.last: w.cleanup?.(); w.last = next; w.cleanup = w.cb(next) (if function)
 ```
 
 ---

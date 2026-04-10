@@ -253,6 +253,16 @@ store.cart.add()   // → silence
 
 The callback only fires when the resolved value actually changes. If a dependency updates but the output remains the same, the callback is skipped.
 
+The callback can optionally return a cleanup function. It runs before the next callback invocation and when unsubscribing — useful for clearing timers, removing event listeners, or any other side effect teardown:
+
+```ts
+watch(store.route, route => {
+  const controller = new AbortController()
+  fetchData(route, { signal: controller.signal })
+  return () => controller.abort()
+})
+```
+
 Any node is watchable — subtrees, individual values, and arrays:
 
 ```ts

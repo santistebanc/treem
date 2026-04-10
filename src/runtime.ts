@@ -4,13 +4,14 @@ import { isObj, isNode, ctxSymbols, VALUE, type SetNode } from './nodes.js'
 
 interface Def { formula: any; value: any; scope: Scope; deps: Set<Def> }
 interface Scope { parent: Scope | null; defs: Map<symbol, Def>; children: Record<string, any>; valueNode?: any }
-interface Watcher { deps: Set<Def>; track: (subs?: Map<Def, Set<Def | Watcher>>) => any; cb: (value: any) => void; last: any }
+type Cleanup = (() => void) | void
+interface Watcher { deps: Set<Def>; track: (subs?: Map<Def, Set<Def | Watcher>>) => any; cb: (value: any) => Cleanup; last: any; cleanup: Cleanup }
 
 const SUBSCRIBE: unique symbol = Symbol('subscribe')
 
 export interface Watchable<T> {
   (): T
-  readonly [SUBSCRIBE]: (cb: (value: T) => void) => () => void
+  readonly [SUBSCRIBE]: (cb: (value: T) => (() => void) | void) => () => void
 }
 
 type ProgramNodeOf<T> =
@@ -45,7 +46,7 @@ function removeSubs(subscribers: Map<Def, Set<Subscriber>>, oldDeps: Set<Def>, s
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
-export function watch<T>(target: Watchable<T>, cb: (value: T) => void): () => void {
+export function watch<T>(target: Watchable<T>, cb: (value: T) => (() => void) | void): () => void {
   return target[SUBSCRIBE](cb)
 }
 
@@ -167,7 +168,7 @@ export function run<T extends object>(app: T): ProgramOf<T> {
         const next = w.track(subscribers)
         if (next !== w.last) {
           w.last = next
-          try { w.cb(next) } catch (err) { console.error('[treem] watcher error:', err) }
+          try { w.cleanup?.(); const r = w.cb(next); w.cleanup = typeof r === 'function' ? r : undefined } catch (err) { console.error('[treem] watcher error:', err) }
         }
       }
     }
@@ -191,10 +192,11 @@ export function run<T extends object>(app: T): ProgramOf<T> {
   }
 
   function makeSubscribe(getValue: () => any, subscribers: Map<Def, Set<Subscriber>>) {
-    return (cb: (value: any) => void) => {
+    return (cb: (value: any) => Cleanup) => {
       const w: Watcher = {
         deps: new Set(),
         last: undefined,
+        cleanup: undefined,
         track: (subs?: Map<Def, Set<Subscriber>>) => {
           const oldDeps = w.deps
           w.deps = new Set()
@@ -214,9 +216,11 @@ export function run<T extends object>(app: T): ProgramOf<T> {
         cb,
       }
       w.last = w.track()
-      cb(w.last)
+      const r = cb(w.last)
+      w.cleanup = typeof r === 'function' ? r : undefined
       watchers.add(w)
       return () => {
+        w.cleanup?.()
         removeSubs(subscribers, w.deps, w)
         watchers.delete(w)
       }
