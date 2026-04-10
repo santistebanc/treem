@@ -1,1 +1,10 @@
 node_modules
+dist
+
+# AI / editor tool folders
+.opencode
+.cursor
+.windsurf
+.aider
+.continue
+.claude

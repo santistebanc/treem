@@ -213,7 +213,7 @@ test('onFalse omitted — watch fires when value becomes undefined', () => {
   const flag = ctx<boolean>('flag')
   const p = run({ [flag]: true, val: iff(flag, 'hi'), off: set({ [flag]: false }) })
   const seen: any[] = []
-  watch(p.val, v => seen.push(v))
+  watch(p.val, v => void seen.push(v))
   p.off()
   assert.deepEqual(seen, ['hi', undefined])
 })
@@ -617,7 +617,7 @@ test('fires immediately with current value on subscribe', () => {
   const x = ctx<number>('x')
   const p = run({ [x]: 5, val: calc(n => n * 2, [x]) })
   const seen: number[] = []
-  watch(p.val, v => seen.push(v))
+  watch(p.val, v => void seen.push(v))
   assert.deepEqual(seen, [10])
 })
 
@@ -625,7 +625,7 @@ test('callback fires with new value on change', () => {
   const x = ctx<number>('x')
   const p = run({ [x]: 0, val: calc(n => n * 2, [x]), inc: set({ [x]: calc(n => n + 1, [x]) }) })
   const seen: number[] = []
-  watch(p.val, v => seen.push(v))
+  watch(p.val, v => void seen.push(v))
   p.inc()
   p.inc()
   assert.deepEqual(seen, [0, 2, 4])
@@ -635,7 +635,7 @@ test('unsubscribe stops callbacks', () => {
   const x = ctx<number>('x')
   const p = run({ [x]: 0, val: calc(n => n, [x]), inc: set({ [x]: calc(n => n + 1, [x]) }) })
   const seen: number[] = []
-  const unwatch = watch(p.val, v => seen.push(v))
+  const unwatch = watch(p.val, v => void seen.push(v))
   p.inc()
   unwatch()
   p.inc()
@@ -656,7 +656,7 @@ test('watch on subtree only fires for subtree deps', () => {
     incB: set({ [b]: calc(n => n + 1, [b]) }),
   })
   const leftFires: number[] = []
-  watch(p.left, v => leftFires.push(v.val))
+  watch(p.left, v => void leftFires.push(v.val))
   p.incB()
   assert.equal(leftFires.length, 1)
   p.incA()
@@ -668,7 +668,7 @@ test('watch on leaf value', () => {
   const x = ctx<number>('x')
   const p = run({ [x]: 0, val: calc(n => n + 1, [x]), inc: set({ [x]: calc(n => n + 1, [x]) }) })
   const seen: number[] = []
-  watch(p.val, v => seen.push(v))
+  watch(p.val, v => void seen.push(v))
   p.inc()
   assert.deepEqual(seen, [1, 2])
 })
@@ -677,8 +677,8 @@ test('multiple watchers on same node all fire', () => {
   const x = ctx<number>('x')
   const p = run({ [x]: 0, val: calc(n => n, [x]), inc: set({ [x]: calc(n => n + 1, [x]) }) })
   const a: number[] = [], b: number[] = []
-  watch(p.val, v => a.push(v))
-  watch(p.val, v => b.push(v))
+  watch(p.val, v => void a.push(v))
+  watch(p.val, v => void b.push(v))
   p.inc()
   assert.equal(a.length, 2)
   assert.equal(b.length, 2)
@@ -705,7 +705,7 @@ test('watch re-tracks deps after branch switch', () => {
     incB: set({ [b]: calc(n => n + 1, [b]) }),
   })
   const seen: any[] = []
-  watch(p.val, v => seen.push(v))
+  watch(p.val, v => void seen.push(v))
   p.incA()
   assert.equal(seen.length, 2)
   p.toggle()
@@ -756,7 +756,7 @@ test('watch does not fire when value unchanged', () => {
     incX: set({ [x]: calc(n => n + 1, [x]) })
   })
   const seen: any[] = []
-  watch(p.val, v => seen.push(v))
+  watch(p.val, v => void seen.push(v))
   p.incX()
   assert.equal(seen.length, 1)
 })
@@ -803,7 +803,7 @@ test('watch on array fires when element changes', () => {
   const flag = ctx<boolean>('flag')
   const p = run({ [flag]: false, items: [iff(flag, 1, 0)], on: set({ [flag]: true }) })
   const seen: any[] = []
-  watch(p.items as any, v => seen.push(v))
+  watch(p.items as any, v => void seen.push(v))
   p.on()
   assert.equal(seen.length, 2)
   assert.deepEqual(seen[1], [1])
@@ -924,7 +924,7 @@ test('watch on a single key of a distributed iff', () => {
     flip: set({ [flag]: calc(f => !f, [flag]) }),
   })
   const seen: number[] = []
-  watch((p.s as any).x, (v: number) => seen.push(v))
+  watch((p.s as any).x, (v: number) => void seen.push(v))
   p.flip()
   assert.deepEqual(seen, [3, 1])
   p.flip()
