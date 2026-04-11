@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wizard — treem</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0 }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f5f5f7;
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 100vh;
+    }
+    @media (max-width: 700px) {
+      body { grid-template-columns: 1fr; grid-template-rows: auto auto; min-height: unset }
+    }
+
+    /* ── Demo side ───────────────────────────────────────────────── */
+    .demo { display: grid; place-items: center; padding: 2rem }
+    .back { display: flex; align-items: center; gap: .4rem; font-size: .82rem; color: #aaa; text-decoration: none; margin-bottom: 1.5rem }
+    .back:hover { color: #666 }
+
+    .card {
+      background: white;
+      border-radius: 16px;
+      padding: 2rem;
+      box-shadow: 0 4px 24px rgba(0,0,0,.08);
+      width: 340px;
+    }
+
+    /* ── Tabs ────────────────────────────────────────────────────── */
+    .tabs {
+      display: flex;
+      gap: .5rem;
+      margin-bottom: 1.5rem;
+    }
+    .tab {
+      flex: 1;
+      padding: .4rem .3rem;
+      font-size: .75rem;
+      font-weight: 600;
+      color: #bbb;
+      border: none;
+      background: none;
+      cursor: default;
+      border-bottom: 2px solid #eee;
+      text-align: center;
+      transition: color .2s, border-color .2s;
+      font-family: inherit;
+      white-space: nowrap;
+    }
+    .tab.active { color: #111; border-bottom-color: #111 }
+    .tab.done   { color: #2e7d32; border-bottom-color: #4caf50 }
+    .tab.done.active { color: #111; border-bottom-color: #111 }
+
+    /* ── Progress ────────────────────────────────────────────────── */
+    .progress-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: .5rem;
+    }
+    .progress-label { font-size: .75rem; font-weight: 600; color: #888 }
+    .progress-track {
+      height: 4px;
+      background: #eee;
+      border-radius: 2px;
+      overflow: hidden;
+      margin-bottom: 1.5rem;
+    }
+    .progress-fill {
+      height: 100%;
+      background: #111;
+      border-radius: 2px;
+      transition: width .35s ease;
+    }
+
+    /* ── Steps ───────────────────────────────────────────────────── */
+    [hidden] { display: none !important }
+    .step-panel { display: flex; flex-direction: column; gap: 1rem }
+
+    .field { display: flex; flex-direction: column; gap: .35rem }
+    label  { font-size: .8rem; font-weight: 600; color: #444 }
+    input[type="text"],
+    input[type="email"] {
+      padding: .55rem .75rem;
+      border: 1.5px solid #ddd;
+      border-radius: 8px;
+      font-size: .9rem;
+      font-family: inherit;
+      outline: none;
+      transition: border-color .15s;
+    }
+    input:focus { border-color: #111 }
+    .error { font-size: .75rem; color: #c62828; min-height: 1em }
+
+    /* ── Plan cards ──────────────────────────────────────────────── */
+    .plan-cards { display: flex; gap: .75rem }
+    .plan-card {
+      flex: 1;
+      padding: 1rem .75rem;
+      border: 2px solid #eee;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      text-align: center;
+    }
+    .plan-card:hover { border-color: #bbb }
+    .plan-card.selected { border-color: #111; background: #fafafa }
+    .plan-card-name  { font-size: .85rem; font-weight: 700; color: #111; margin-bottom: .25rem }
+    .plan-card-desc  { font-size: .75rem; color: #888; line-height: 1.4 }
+    .plan-card-price { font-size: 1.1rem; font-weight: 800; color: #111; margin: .4rem 0 .2rem }
+
+    .info-box {
+      background: #fafafa;
+      border: 1px solid #eee;
+      border-radius: 10px;
+      padding: .9rem 1rem;
+      font-size: .82rem;
+      color: #444;
+      display: flex;
+      flex-direction: column;
+      gap: .35rem;
+    }
+    .info-row { display: flex; justify-content: space-between; align-items: center }
+    .info-row span:first-child { color: #888 }
+    .badge {
+      font-size: .7rem;
+      font-weight: 700;
+      background: #e8f5e9;
+      color: #2e7d32;
+      padding: .15rem .45rem;
+      border-radius: 20px;
+    }
+    #api-badge { display: inline-block }
+    #plan-cta  { font-size: .82rem; font-style: italic; color: #888; margin-top: .1rem }
+
+    /* ── Summary ─────────────────────────────────────────────────── */
+    .summary-box {
+      background: #fafafa;
+      border: 1px solid #eee;
+      border-radius: 10px;
+      padding: 1rem 1.1rem;
+      display: flex;
+      flex-direction: column;
+      gap: .4rem;
+      font-size: .85rem;
+      color: #444;
+    }
+    .summary-greeting { font-weight: 700; font-size: .9rem; color: #111; margin-bottom: .2rem }
+
+    .agree-row {
+      display: flex;
+      align-items: flex-start;
+      gap: .6rem;
+      font-size: .82rem;
+      color: #555;
+      line-height: 1.45;
+    }
+    input[type="checkbox"] { margin-top: .18rem; cursor: pointer; accent-color: #111 }
+
+    /* ── Navigation ──────────────────────────────────────────────── */
+    .nav {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 1.5rem;
+      gap: .75rem;
+    }
+    .btn {
+      flex: 1;
+      padding: .65rem 1rem;
+      font-size: .9rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: opacity .15s, transform .1s;
+    }
+    .btn:active  { transform: scale(.97) }
+    .btn:disabled { opacity: .35; cursor: not-allowed; transform: none }
+    .btn-back { background: #eee; color: #555 }
+    .btn-next { background: #111; color: #fff }
+
+    /* ── Code side ───────────────────────────────────────────────── */
+    .code { padding: 1.5rem; overflow: hidden; display: flex; flex-direction: column }
+    #code-panel { flex: 1; border-radius: 12px; overflow: hidden }
+  </style>
+</head>
+<body>
+  <div class="demo">
+    <div>
+      <a class="back" href="/">← Examples</a>
+      <div class="card">
+
+        <!-- Tabs -->
+        <div class="tabs">
+          <div class="tab" id="tab-0">Your details</div>
+          <div class="tab" id="tab-1">Choose a plan</div>
+          <div class="tab" id="tab-2">Confirm</div>
+        </div>
+
+        <!-- Progress -->
+        <div class="progress-row">
+          <span class="progress-label" id="progress-label">Your details</span>
+          <span class="progress-label" style="color:#bbb" id="step-count"></span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progress-fill" style="width:33%"></div>
+        </div>
+
+        <!-- Step 1: Personal details -->
+        <div class="step-panel" id="step-1">
+          <div class="field">
+            <label for="name-input">Name</label>
+            <input type="text" id="name-input" placeholder="Your name" autocomplete="name">
+            <span class="error" id="name-error" hidden></span>
+          </div>
+          <div class="field">
+            <label for="email-input">Email</label>
+            <input type="email" id="email-input" placeholder="you@example.com" autocomplete="email">
+            <span class="error" id="email-error" hidden></span>
+          </div>
+        </div>
+
+        <!-- Step 2: Plan selection -->
+        <div class="step-panel" id="step-2" hidden>
+          <div class="plan-cards">
+            <div class="plan-card" id="card-free">
+              <div class="plan-card-name">Free</div>
+              <div class="plan-card-price">$0</div>
+              <div class="plan-card-desc">1 seat · no API</div>
+            </div>
+            <div class="plan-card" id="card-pro">
+              <div class="plan-card-name">Pro</div>
+              <div class="plan-card-price">$12 / mo</div>
+              <div class="plan-card-desc">Up to 10 · API</div>
+            </div>
+          </div>
+          <div class="info-box">
+            <div class="info-row">
+              <span>Price</span>
+              <span id="pro-price"></span>
+            </div>
+            <div class="info-row">
+              <span>Seats</span>
+              <span id="pro-seats"></span>
+            </div>
+            <div class="info-row">
+              <span>API access</span>
+              <span class="badge" id="api-badge" hidden>Included</span>
+            </div>
+            <div id="plan-cta"></div>
+          </div>
+        </div>
+
+        <!-- Step 3: Review & confirm -->
+        <div class="step-panel" id="step-3" hidden>
+          <div class="summary-box">
+            <div class="summary-greeting" id="summary-greeting"></div>
+            <div id="summary-line1"></div>
+            <div id="summary-line2"></div>
+          </div>
+          <label class="agree-row">
+            <input type="checkbox" id="agree-check">
+            I agree to the terms of service and privacy policy.
+          </label>
+        </div>
+
+        <!-- Navigation -->
+        <div class="nav">
+          <button class="btn btn-back" id="back-btn">← Back</button>
+          <button class="btn btn-next" id="next-btn" disabled>Next →</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="code">
+    <div id="code-panel"></div>
+  </div>
+
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

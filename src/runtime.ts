@@ -24,7 +24,7 @@ type ProgramNodeOf<T> =
   T extends SetNode<infer Args> ? (...args: Args) => void :
   T extends { readonly __exprType: infer U } ?
     Watchable<U> & (IsNodeObject<U> extends true ? { [K in Extract<keyof U, string>]: ProgramNodeOf<U[K]> } : {}) :
-  T extends readonly any[] ? Watchable<any> :
+  T extends readonly any[] ? Array<ProgramNodeOf<T[number]>> & Watchable<any> :
   T extends object ? Watchable<any> & { [K in Extract<keyof T, string>]: ProgramNodeOf<T[K]> } :
   Watchable<T>
 
