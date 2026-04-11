@@ -7,7 +7,7 @@ A small declarative state management library. You describe your app as a plain o
 ## Quick look
 
 ```ts
-import { ref, calc, iff, set, arg, run, watch } from 'treem'
+import { ref, calc, iff, update, arg, run, watch } from 'treem'
 
 const theme = ref<'light' | 'dark'>('theme')
 const lang  = ref<'en' | 'es'>('lang')
@@ -21,8 +21,8 @@ const app = run({
   [theme]: 'light',
   [lang]:  'en',
 
-  toggleTheme: set({ [theme]: iff(isLight, 'dark', 'light') }),
-  setLang:     set<['en' | 'es']>({ [lang]: arg<'en' | 'es'>(0) }),
+  toggleTheme: update({ [theme]: iff(isLight, 'dark', 'light') }),
+  updateLang:     update<['en' | 'es']>({ [lang]: arg<'en' | 'es'>(0) }),
 
   // iff over objects distributes key-by-key — each key is its own reactive node
   ui: iff(isDark, {
@@ -39,7 +39,7 @@ const app = run({
 app.ui.background()  // '#fff'
 app.ui.welcome()     // 'Good morning'
 
-app.setLang('es')
+app.updateLang('es')
 app.ui.welcome()     // 'Buenos días'
 
 app.toggleTheme()
@@ -73,7 +73,7 @@ const x = ref<number>('x')
   val:     x,                          // read x directly — no calc wrapper needed
   doubled: calc(n => n * 2, [x]),     // pass x to a calc
   label:   iff(x, 'non-zero', 'zero'), // use x as an iff condition
-  copy:    set({ [x]: x }),              // read x inside a set assignment
+  copy:    update({ [x]: x }),              // read x inside a update assignment
 }
 ```
 
@@ -170,7 +170,7 @@ iff(hasError, { message: 'Something went wrong', code: 500 })
 // false → each key resolves to undefined
 ```
 
-### `set` — action
+### `update` — action
 
 Declares a state mutation. All assignments are evaluated from the current state before any are applied, making swaps safe:
 
@@ -179,33 +179,33 @@ const a = ref<number>('a')
 const b = ref<number>('b')
 
 // increments count
-const increment = set({ [count]: calc(n => n + 1, [count]) })
+const increment = update({ [count]: calc(n => n + 1, [count]) })
 
-// resets to a literal
-const reset = set({ [count]: 0 })
+// reupdates to a literal
+const reupdate = update({ [count]: 0 })
 
 // atomically swaps a and b
-const swap = set({ [a]: b, [b]: a })
+const swap = update({ [a]: b, [b]: a })
 ```
 
 ### `arg` — action argument
 
-Reads a runtime argument passed when an action is called. Combine with `set` to make parameterized actions. The type parameter on `set<Args>` declares the full argument tuple:
+Reads a runtime argument passed when an action is called. Combine with `update` to make parameterized actions. The type parameter on `update<Args>` declares the full argument tuple:
 
 ```ts
 const price = ref<number>('price')
 
 const app = {
   [price]: 10,
-  setPrice:   set<[number]>({ [price]: arg<number>(0) }),
-  addToPrice: set<[number]>({ [price]: calc((p, n) => p + n, [price, arg<number>(0)]) }),
-  setRange:   set<[number, number]>({ [min]: arg<number>(0), [max]: arg<number>(1) }),
+  updatePrice:   update<[number]>({ [price]: arg<number>(0) }),
+  addToPrice: update<[number]>({ [price]: calc((p, n) => p + n, [price, arg<number>(0)]) }),
+  updateRange:   update<[number, number]>({ [min]: arg<number>(0), [max]: arg<number>(1) }),
 }
 
 const store = run(app)
-store.setPrice(42)        // price → 42
+store.updatePrice(42)        // price → 42
 store.addToPrice(8)       // price → 50
-store.setRange(0, 100)
+store.updateRange(0, 100)
 ```
 
 ### `run` — instantiate
@@ -279,7 +279,7 @@ The app is a plain object where:
 
 - **`[ref]: value`** — defines a ref at this scope with an initial value (can be a formula)
 - **`key: value`** — a derived value or nested scope
-- **`key: set({...})`** — an action
+- **`key: update({...})`** — an action
 - **`key: [...]`** — an array of values or nested scopes
 
 ```ts
@@ -290,13 +290,13 @@ const app = {
   [name]: 'Guest',                            // mutable state
 
   greeting: calc(n => `Hello, ${n}!`, [name]),   // derived value
-  rename: set<[string]>({ [name]: arg<string>(0) }), // parameterized action
+  rename: update<[string]>({ [name]: arg<string>(0) }), // parameterized action
 
   cart: {                                        // nested scope
     [qty]: 0,
     total: calc(q => q * 9.99, [qty]),
-    add:   set({ [qty]: calc(q => q + 1, [qty]) }),
-    clear: set({ [qty]: 0 }),
+inc:   update({ [qty]: calc(q => q + 1, [qty]) }),
+clear: update({ [qty]: 0 }),
   },
 }
 ```
@@ -312,7 +312,7 @@ const active = ref<boolean>('active')
 
 const app = {
   [active]: false,
-  toggle: set({ [active]: calc(b => !b, [active]) }),
+  toggle: update({ [active]: calc(b => !b, [active]) }),
 
   tabs: [
     { label: 'Home',     disabled: false },
@@ -347,26 +347,26 @@ const app = {
   regular: {
     [qty]: 0,
     total: calc((p, q) => p * q, [price, qty]),  // reads ancestor price ✓
-    add:   set(() => ({ [qty]: calc(q => q + 1, [qty]) })),
+    add:   update(() => ({ [qty]: calc(q => q + 1, [qty]) })),
   },
 
   sale: {
     [price]: 4.99,         // overrides price for this scope only
     [qty]: 0,
     total: calc((p, q) => p * q, [price, qty]),  // uses the overridden price ✓
-    add:   set(() => ({ [qty]: calc(q => q + 1, [qty]) })),
+    add:   update(() => ({ [qty]: calc(q => q + 1, [qty]) })),
   },
 }
 ```
 
-When `set` targets a ref, it resolves to the nearest ancestor definition visible from the action's location — the same rule that reads use.
+When `update` targets a ref, it resolves to the nearest ancestor definition visible from the action's location — the same rule that reads use.
 
 ---
 
 ## Reactivity
 
-- **Mutable state** — `[qty]: 0` defines a ref that can be freely updated with `set`.
-- **Reactive formula** — `[qty]: calc(...)` defines a ref whose value is driven by a formula. Whenever the formula's dependencies change, the ref resets to the formula result. Any manual `set` is overwritten on the next dependency change.
+- **Mutable state** — `[qty]: 0` defines a ref that can be freely updated with `update`.
+- **Reactive formula** — `[qty]: calc(...)` defines a ref whose value is driven by a formula. Whenever the formula's dependencies change, the ref reupdates to the formula result. Any manual `update` is overwritten on the next dependency change.
 
 ```ts
 const isPro = ref<boolean>('isPro')
@@ -374,18 +374,18 @@ const qty   = ref<number>('qty')
 
 const app = {
   [isPro]: false,
-  togglePro: set({ [isPro]: calc(b => !b, [isPro]) }),
+  togglePro: update({ [isPro]: calc(b => !b, [isPro]) }),
 
   cart: {
-    [qty]: iff(isPro, 0, 0),  // reactive: resets to 0 whenever isPro changes
-    add:   set(() => ({ [qty]: calc(q => q + 1, [qty]) })),
+    [qty]: iff(isPro, 0, 0),  // reactive: reupdates to 0 whenever isPro changes
+    add:   update(() => ({ [qty]: calc(q => q + 1, [qty]) })),
   },
 }
 
 const store = run(app)
 store.cart.add()      // qty → 1
 store.cart.add()      // qty → 2
-store.togglePro()     // isPro flips → qty formula reruns → qty resets to 0
+store.togglePro()     // isPro flips → qty formula reruns → qty reupdates to 0
 ```
 
 Propagation is efficient: if a dep changes but the computed output stays the same, dependents are not re-evaluated and watchers are not notified.
@@ -401,7 +401,7 @@ When `iff` distributes over objects, it creates a scope where each key is an ind
 You can import `VALUE` to read this directly when you need it:
 
 ```ts
-import { ref, iff, set, run, VALUE } from 'treem'
+import { ref, iff, update, run, VALUE } from 'treem'
 
 const flag = ref<boolean>('flag')
 
@@ -427,7 +427,7 @@ This is mostly an implementation detail you won't need to reach for — calling 
 A multi-step signup wizard that puts every feature to work: nested scopes, reactive formulas, distributed conditionals, parameterized actions, arrays, and watchers.
 
 ```ts
-import { ref, calc, iff, set, run, watch, type Expr } from 'treem'
+import { ref, calc, iff, update, run, watch, type Expr } from 'treem'
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
@@ -458,13 +458,13 @@ const wizard = run({
   [agreed]: false,
 
   // ── Navigation ──────────────────────────────────────────────────────────────
-  next: set({ [step]: clamp(1, 3, calc(s => s + 1, [step])) }), // clamp keeps step in [1,3]
-  back: set({ [step]: clamp(1, 3, calc(s => s - 1, [step])) }),
+  next: update({ [step]: clamp(1, 3, calc(s => s + 1, [step])) }), // clamp keeps step in [1,3]
+  back: update({ [step]: clamp(1, 3, calc(s => s - 1, [step])) }),
 
   // ── Step 1: personal details ─────────────────────────────────────────────────
   details: {
-    setName:  set<[string]>({ [name]:  arg<string>(0) }),
-    setEmail: set<[string]>({ [email]: arg<string>(0) }),
+    updateName:  update<[string]>({ [name]:  arg<string>(0) }),
+    updateEmail: update<[string]>({ [email]: arg<string>(0) }),
 
     errors: {
       name:  iff(nameOk,  '',          'Name is required'),
@@ -488,8 +488,8 @@ const wizard = run({
     cta:       'Get started',
   }),
 
-  setPlan: set<['free' | 'pro']>({ [plan]:   arg<'free' | 'pro'>(0) }),
-  agree:   set({ [agreed]: true }),
+  updatePlan: update<['free' | 'pro']>({ [plan]:   arg<'free' | 'pro'>(0) }),
+  agree:   update({ [agreed]: true }),
 
   // ── Step 3: review ───────────────────────────────────────────────────────────
   //    reads ancestor refs — scoping in action
@@ -528,15 +528,15 @@ const stopLog = watch(wizard.progress, p => {
 
 // ─── Use the wizard ──────────────────────────────────────────────────────────
 
-wizard.details.setName('Alice')
-wizard.details.setEmail('alice@example.com')
+wizard.details.updateName('Alice')
+wizard.details.updateEmail('alice@example.com')
 
 wizard.details.errors.name()   // ''   — no error
 wizard.canNext()               // true — step 1 valid
 
 wizard.next()                  // → [66%] Choose a plan
 
-wizard.setPlan('pro')
+wizard.updatePlan('pro')
 wizard.planInfo.price()        // '$12 / month'
 wizard.planInfo.apiAccess()    // true
 wizard.planInfo.cta()          // 'Upgrade, Alice!'

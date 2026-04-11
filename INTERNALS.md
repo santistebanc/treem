@@ -28,7 +28,7 @@ const store = run({
   [count]:  0,
   [step]:   1,
   doubled,
-  inc: set({ [count]: calc((n, s) => n + s, [count, step]) }),
+  inc: update({ [count]: calc((n, s) => n + s, [count, step]) }),
 })
 ```
 
