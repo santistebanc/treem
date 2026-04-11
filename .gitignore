@@ -1,6 +1,9 @@
 node_modules
 dist
 
+# Graphify knowledge graph outputs
+graphify-out/
+
 # AI / editor tool folders
 .opencode
 .cursor
