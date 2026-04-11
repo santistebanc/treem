@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Traffic Light — treem</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0 }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f5f5f7;
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 100vh;
+    }
+    @media (max-width: 700px) {
+      body { grid-template-columns: 1fr; grid-template-rows: auto auto; min-height: unset }
+    }
+
+    .demo {
+      display: grid; place-items: center;
+      padding: 2rem;
+    }
+    .card {
+      background: white;
+      border-radius: 16px;
+      padding: 2.5rem 2rem;
+      box-shadow: 0 4px 24px rgba(0,0,0,.08);
+      width: 300px;
+      text-align: center;
+    }
+    .back { display: flex; align-items: center; gap: .4rem; font-size: .82rem; color: #aaa; text-decoration: none; margin-bottom: 1.5rem }
+    .back:hover { color: #666 }
+    .label { font-size: .75rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #999; margin-bottom: 1rem }
+
+    .traffic-light {
+      width: 100px;
+      padding: 16px;
+      background: #2a2a3e;
+      border-radius: 50px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.3), inset 0 2px 0 rgba(255,255,255,0.1);
+      margin: 1rem auto;
+    }
+    .light {
+      width: 68px;
+      height: 68px;
+      border-radius: 50%;
+      margin: 8px auto;
+      background: #333;
+      transition: all 0.3s ease;
+      box-shadow: inset 0 4px 8px rgba(0,0,0,0.5);
+    }
+    .light.red.active {
+      background: radial-gradient(circle at 30% 30%, #ff6b6b, #c0392b);
+      box-shadow: 0 0 25px #c0392b, 0 0 50px #c0392b55;
+    }
+    .light.yellow.active {
+      background: radial-gradient(circle at 30% 30%, #ffd93d, #f39c12);
+      box-shadow: 0 0 25px #f39c12, 0 0 50px #f39c1255;
+    }
+    .light.green.active {
+      background: radial-gradient(circle at 30% 30%, #6bcb77, #27ae60);
+      box-shadow: 0 0 25px #27ae60, 0 0 50px #27ae6055;
+    }
+
+    .controls {
+      margin-top: 1.5rem;
+      display: flex;
+      gap: 0.75rem;
+      justify-content: center;
+    }
+    button {
+      padding: 0.6rem 1.2rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+    button:active { transform: scale(0.96) }
+    .btn-light { background: #eee; color: #111 }
+    .btn-dark { background: #111; color: #fff }
+    .btn-dark.active { background: #c0392b }
+
+    .timeout-display {
+      margin-top: 1rem;
+      font-size: 0.85rem;
+      color: #888;
+    }
+    .progress-bar {
+      width: 100%;
+      height: 6px;
+      background: #eee;
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 0.5rem;
+    }
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: #27ae60;
+      border-radius: 3px;
+    }
+    .progress-fill.yellow { background: #f39c12; }
+    .progress-fill.red { background: #c0392b; }
+    @keyframes fill {
+      from { width: 0%; }
+      to { width: 100%; }
+    }
+    .progress-fill.animating {
+      animation: fill linear forwards;
+    }
+
+    .code { padding: 1.5rem; overflow: hidden; display: flex; flex-direction: column }
+    #code-panel { flex: 1; border-radius: 12px; overflow: hidden }
+  </style>
+</head>
+<body>
+  <div class="demo">
+    <div>
+      <a class="back" href="/">← Examples</a>
+      <div class="card">
+        <div class="label">Traffic Light</div>
+        <div class="traffic-light">
+          <div class="light red" id="red"></div>
+          <div class="light yellow" id="yellow"></div>
+          <div class="light green" id="green"></div>
+        </div>
+        <div class="timeout-display" id="timeout">3000ms</div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progress"></div>
+        </div>
+        <div class="controls">
+          <button class="btn-light" id="next">Next</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="code">
+    <div id="code-panel"></div>
+  </div>
+
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

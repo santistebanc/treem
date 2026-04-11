@@ -4,19 +4,26 @@ import { isObj, isNode, ctxSymbols, VALUE, type SetNode } from './nodes.js'
 
 interface Def { formula: any; value: any; scope: Scope; deps: Set<Def> }
 interface Scope { parent: Scope | null; defs: Map<symbol, Def>; children: Record<string, any>; valueNode?: any }
-type Cleanup = (() => void) | void
-interface Watcher { deps: Set<Def>; track: (subs?: Map<Def, Set<Def | Watcher>>) => any; cb: (value: any) => Cleanup; last: any; cleanup: Cleanup }
+type Cleanup = (prev: any, next: any) => void
+type CleanupResult = (() => void) | void
+interface Watcher { deps: Set<Def>; track: (subs?: Map<Def, Set<Def | Watcher>>) => any; cb: (value: any, prev?: any) => CleanupResult; last: any; cleanup: Cleanup | undefined }
 
 const SUBSCRIBE: unique symbol = Symbol('subscribe')
 
 export interface Watchable<T> {
   (): T
-  readonly [SUBSCRIBE]: (cb: (value: T) => (() => void) | void) => () => void
+  readonly [SUBSCRIBE]: (cb: (value: T, prev?: T) => CleanupResult) => () => void
 }
+
+// When a node's value type U is itself an object of nodes (e.g. a DistributeIff result
+// used as a value inside another iff branch), its sub-properties exist at runtime and
+// should be exposed. We detect this by checking whether U's values carry __exprType.
+type IsNodeObject<U> = [U] extends [Record<string, { readonly __exprType: any }>] ? true : false
 
 type ProgramNodeOf<T> =
   T extends SetNode<infer Args> ? (...args: Args) => void :
-  T extends { readonly __exprType: infer U } ? Watchable<U> :
+  T extends { readonly __exprType: infer U } ?
+    Watchable<U> & (IsNodeObject<U> extends true ? { [K in Extract<keyof U, string>]: ProgramNodeOf<U[K]> } : {}) :
   T extends readonly any[] ? Watchable<any> :
   T extends object ? Watchable<any> & { [K in Extract<keyof T, string>]: ProgramNodeOf<T[K]> } :
   Watchable<T>
@@ -46,7 +53,7 @@ function removeSubs(subscribers: Map<Def, Set<Subscriber>>, oldDeps: Set<Def>, s
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
-export function watch<T>(target: Watchable<T>, cb: (value: T) => (() => void) | void): () => void {
+export function watch<T>(target: Watchable<T>, cb: (value: T, prev?: T) => CleanupResult): () => void {
   return target[SUBSCRIBE](cb)
 }
 
@@ -167,8 +174,9 @@ export function run<T extends object>(app: T): ProgramOf<T> {
       if (hit) {
         const next = w.track(subscribers)
         if (next !== w.last) {
+          const prev = w.last
           w.last = next
-          try { w.cleanup?.(); const r = w.cb(next); w.cleanup = typeof r === 'function' ? r : undefined } catch (err) { console.error('[treem] watcher error:', err) }
+          try { w.cleanup?.(prev, next); const r = w.cb(next, prev); w.cleanup = r ?? undefined } catch (err) { console.error('[treem] watcher error:', err) }
         }
       }
     }
@@ -213,14 +221,17 @@ export function run<T extends object>(app: T): ProgramOf<T> {
             watchTracking = prev
           }
         },
-        cb,
+        cb: ((value: any, prev?: any) => {
+          const r = (cb as any)(value, prev)
+          return typeof r === 'function' ? r : undefined
+        }),
       }
       w.last = w.track()
-      const r = cb(w.last)
-      w.cleanup = typeof r === 'function' ? r : undefined
+      const r = w.cb(w.last, undefined)
+      w.cleanup = r ?? undefined
       watchers.add(w)
       return () => {
-        w.cleanup?.()
+        w.cleanup?.(w.last, undefined)
         removeSubs(subscribers, w.deps, w)
         watchers.delete(w)
       }
@@ -235,7 +246,8 @@ export function run<T extends object>(app: T): ProgramOf<T> {
     }
     if (isScope(node)) {
       const fn: any = () => resolve(node)
-      for (const [k, child] of Object.entries(node.children)) fn[k] = callable(child, node, subscribers)
+      for (const [k, child] of Object.entries(node.children))
+        Object.defineProperty(fn, k, { value: callable(child, node, subscribers), writable: true, configurable: true, enumerable: true })
       fn[SUBSCRIBE] = makeSubscribe(() => resolve(node), subscribers)
       return fn
     }

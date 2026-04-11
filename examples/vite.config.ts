@@ -16,6 +16,7 @@ export default defineConfig({
         main:         path.resolve(__dirname, 'index.html'),
         counter:      path.resolve(__dirname, 'counter/index.html'),
         shop:         path.resolve(__dirname, 'shop/index.html'),
+        pricing:      path.resolve(__dirname, 'pricing/index.html'),
         'react-todo': path.resolve(__dirname, 'react-todo/index.html'),
       },
     },
