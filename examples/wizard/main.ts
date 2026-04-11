@@ -1,4 +1,4 @@
-import { ref, calc, iff, set, arg, run, watch, type Expr } from 'treem'
+import { ref, calc, iff, update, arg, run, watch, type Expr } from 'treem'
 import tsSource   from './main.ts?raw'
 import htmlSource from './index.html?raw'
 import { renderCodePanel } from '../_shared/code-panel'
@@ -32,13 +32,13 @@ const wizard = run({
   [agreed]: false,
 
   // ── Navigation ───────────────────────────────────────────────────────────────
-  next: set({ [step]: clamp(1, 3, calc(s => s + 1, [step])) }),
-  back: set({ [step]: clamp(1, 3, calc(s => s - 1, [step])) }),
+  next: update({ [step]: clamp(1, 3, calc(s => s + 1, [step])) }),
+  back: update({ [step]: clamp(1, 3, calc(s => s - 1, [step])) }),
 
   // ── Step 1: personal details ──────────────────────────────────────────────────
   details: {
-    setName:  set<[string]>({ [name]:  arg<string>(0) }),
-    setEmail: set<[string]>({ [email]: arg<string>(0) }),
+    setName:  update<[string]>({ [name]:  arg<string>(0) }),
+    setEmail: update<[string]>({ [email]: arg<string>(0) }),
 
     errors: {
       name:  iff(nameOk,  '', 'Name is required'),
@@ -62,11 +62,11 @@ const wizard = run({
     cta:       'Get started',
   }),
 
-  setPlan: set<['free' | 'pro']>({ [plan]: arg<'free' | 'pro'>(0) }),
+  setPlan: update<['free' | 'pro']>({ [plan]: arg<'free' | 'pro'>(0) }),
 
   // ── Step 3: review ────────────────────────────────────────────────────────────
-  agree:    set({ [agreed]: true }),
-  disagree: set({ [agreed]: false }),
+  agree:    update({ [agreed]: true }),
+  disagree: update({ [agreed]: false }),
 
   summary: {
     greeting: calc(n => `Hi ${n}, you're almost done.`, [name]),

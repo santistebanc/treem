@@ -4,6 +4,8 @@ export const isObj = (x: unknown): x is Record<string | symbol, any> =>
 const NODE = Symbol('node')
 export const VALUE = Symbol('value')
 export const refSymbols = new Set<symbol>()
+export const eventSymbols = new Set<symbol>()
+const eventRegistry = new Map<symbol, Set<(...args: any[]) => void>>()
 
 export const isNode = (x: unknown) => isObj(x) && (x as any)[NODE] === true
 const allKeys = (o: object): (string | symbol)[] =>
@@ -17,13 +19,14 @@ export type Ref<T = any> = symbol & { readonly __exprType: T }
 export type CalcNode<T = any> = object & { readonly __exprType: T }
 export type ArgNode<T = any> = object & { readonly __exprType: T }
 export type IffNode<T = any> = object & { readonly __exprType: T }
-export type SetNode<Args extends any[] = []> = object & { readonly __setNode: true; readonly __args: Args }
+export type EventChannel<Args extends any[] = any[]> = object & { readonly __eventArgs: Args }
+export type UpdateNode<Args extends any[] = []> = object & { readonly __updateNode: true; readonly __args: Args }
 export type Expr<T> = T | Ref<T> | CalcNode<T> | ArgNode<T> | IffNode<T>
 
-type PlainObj = Record<string, unknown> & { readonly __exprType?: never } & { readonly __setNode?: never }
+type PlainObj = Record<string, unknown> & { readonly __exprType?: never } & { readonly __updateNode?: never }
 
 type Unwrap<T> =
-  T extends { readonly __setNode: true } ? void :
+  T extends { readonly __updateNode: true } ? void :
   T extends { readonly __exprType: infer U } ? U :
   T
 
@@ -40,6 +43,25 @@ export function ref<T = unknown>(name: string): Ref<T> {
   const sym = Symbol(name)
   refSymbols.add(sym)
   return mark({ type: 'ref' as const, name, sym, [Symbol.toPrimitive]: () => sym }) as unknown as Ref<T>
+}
+
+export function event<Args extends any[] = []>(name: string): EventChannel<Args> {
+  const sym = Symbol(name)
+  eventSymbols.add(sym)
+  eventRegistry.set(sym, new Set())
+  return mark({ type: 'event' as const, name, sym, [Symbol.toPrimitive]: () => sym }) as unknown as EventChannel<Args>
+}
+
+export function subscribeEvent(channel: EventChannel<any>, cb: (...args: any[]) => void): () => void {
+  const sym = (channel as any).sym as symbol
+  const subs = eventRegistry.get(sym)
+  if (!subs) return () => {}
+  subs.add(cb)
+  return () => subs.delete(cb)
+}
+
+export function emitEvent(sym: symbol, args: any[]): void {
+  for (const cb of eventRegistry.get(sym) ?? []) cb(...args)
 }
 
 export function calc<Args extends readonly any[], R>(
@@ -81,8 +103,8 @@ export function iff(cond: any, onTrue: any, onFalse: any = undefined): any {
   return out
 }
 
-export function set<Args extends any[] = []>(assignments: object): SetNode<Args> {
-  return mark({ type: 'set' as const, assignments }) as unknown as SetNode<Args>
+export function update<Args extends any[] = []>(assignments: object): UpdateNode<Args> {
+  return mark({ type: 'update' as const, assignments }) as unknown as UpdateNode<Args>
 }
 
 export function arg<T = unknown>(index: number): ArgNode<T> {

@@ -1,4 +1,4 @@
-import { ref, calc, set, run, watch } from 'treem'
+import { ref, calc, update, run, watch } from 'treem'
 import tsSource from './main.ts?raw'
 import htmlSource from './index.html?raw'
 import { renderCodePanel } from '../_shared/code-panel'
@@ -9,7 +9,7 @@ const idx = ref<number>('idx')
 const store = run({
   [idx]: 0,
   phase: calc((i) => phases[i], [idx]),
-  next: set({ [idx]: calc((i) => (i + 1) % phases.length, [idx]) }),
+  next: update({ [idx]: calc((i) => (i + 1) % phases.length, [idx]) }),
 })
 
 const el = (id: string) => document.getElementById(id)!

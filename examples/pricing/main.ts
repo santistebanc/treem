@@ -1,4 +1,4 @@
-import { ref, iff, set, run, watch } from 'treem'
+import { ref, iff, update, run, watch } from 'treem'
 import tsSource   from './main.ts?raw'
 import htmlSource from './index.html?raw'
 import { renderCodePanel } from '../_shared/code-panel'
@@ -12,10 +12,10 @@ const store = run({
   annual,
   pro,
 
-  setMonthly: set({ [annual]: false }),
-  setAnnual:  set({ [annual]: true }),
-  setBasic:   set({ [pro]: false }),
-  setPro:     set({ [pro]: true }),
+  setMonthly: update({ [annual]: false }),
+  setAnnual:  update({ [annual]: true }),
+  setBasic:   update({ [pro]: false }),
+  setPro:     update({ [pro]: true }),
 
   plan: iff(pro, {
     name:    'Pro',

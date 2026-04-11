@@ -1,4 +1,4 @@
-import { ref, calc, iff, set, arg, run, watch, devtool } from 'treem'
+import { ref, calc, iff, update, arg, run, watch, devtool } from 'treem'
 
 // ─── Refs ─────────────────────────────────────────────────────────────────────
 
@@ -39,23 +39,23 @@ const store = run({
   ),
 
   // Actions (no args)
-  inc:       set({ [count]: calc((n, s) => n + s, [count, step]) }),
-  dec:       set({ [count]: calc((n, s) => n - s, [count, step]) }),
-  reset:     set({ [count]: 0, [step]: 1 }),
-  toggleDark: set({ [isDark]: calc(v => !v, [isDark]) }),
-  toggleVis:  set({ [visible]: calc(v => !v, [visible]) }),
+  inc:       update({ [count]: calc((n, s) => n + s, [count, step]) }),
+  dec:       update({ [count]: calc((n, s) => n - s, [count, step]) }),
+  reset:     update({ [count]: 0, [step]: 1 }),
+  toggleDark: update({ [isDark]: calc(v => !v, [isDark]) }),
+  toggleVis:  update({ [visible]: calc(v => !v, [visible]) }),
 
   // Actions with args
-  setStep:  set<[number]>({ [step]:  arg<number>(0) }),
-  setName:  set<[string]>({ [name]:  arg<string>(0) }),
-  addCount: set<[number]>({ [count]: calc((n: number, delta: number) => n + delta, [count, arg<number>(0)]) }),
+  setStep:  update<[number]>({ [step]:  arg<number>(0) }),
+  setName:  update<[string]>({ [name]:  arg<string>(0) }),
+  addCount: update<[number]>({ [count]: calc((n: number, delta: number) => n + delta, [count, arg<number>(0)]) }),
 
   // Nested scope
   nested: {
     [count]: 100,   // shadow count inside this scope
     count,          // exposes the shadowed count
     halved: calc(n => n / 2, [count]),
-    bump:   set({ [count]: calc(n => n + 10, [count]) }),
+    bump:   update({ [count]: calc(n => n + 10, [count]) }),
   },
 })
 
@@ -143,7 +143,7 @@ $('doubled').textContent  = String(store.doubled())
 $('label').textContent    = String(store.label())
 $('greeting').textContent = String(store.greeting())
 
-// ─── Open devtool (must be after body is set up) ──────────────────────────────
+// ─── Open devtool (must be after body is update up) ──────────────────────────────
 
 devtool(store, {
   count,
@@ -159,18 +159,18 @@ devtool(store, {
     { bg: '#111111', fg: '#eeeeee', accent: '#58a6ff' },
     { bg: '#ffffff', fg: '#111111', accent: '#0969da' },
   ),
-  inc:        set({ [count]: calc((n, s) => n + s, [count, step]) }),
-  dec:        set({ [count]: calc((n, s) => n - s, [count, step]) }),
-  reset:      set({ [count]: 0, [step]: 1 }),
-  toggleDark: set({ [isDark]: calc(v => !v, [isDark]) }),
-  toggleVis:  set({ [visible]: calc(v => !v, [visible]) }),
-  setStep:    set<[number]>({ [step]:  arg<number>(0) }),
-  setName:    set<[string]>({ [name]:  arg<string>(0) }),
-  addCount:   set<[number]>({ [count]: calc((n: number, delta: number) => n + delta, [count, arg<number>(0)]) }),
+  inc:        update({ [count]: calc((n, s) => n + s, [count, step]) }),
+  dec:        update({ [count]: calc((n, s) => n - s, [count, step]) }),
+  reset:      update({ [count]: 0, [step]: 1 }),
+  toggleDark: update({ [isDark]: calc(v => !v, [isDark]) }),
+  toggleVis:  update({ [visible]: calc(v => !v, [visible]) }),
+  setStep:    update<[number]>({ [step]:  arg<number>(0) }),
+  setName:    update<[string]>({ [name]:  arg<string>(0) }),
+  addCount:   update<[number]>({ [count]: calc((n: number, delta: number) => n + delta, [count, arg<number>(0)]) }),
   nested: {
     [count]: 100,
     count,
     halved: calc(n => n / 2, [count]),
-    bump:   set({ [count]: calc(n => n + 10, [count]) }),
+    bump:   update({ [count]: calc(n => n + 10, [count]) }),
   },
 })

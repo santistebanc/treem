@@ -3,7 +3,7 @@ import { watch } from './runtime.js'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Kind = 'ref' | 'calc' | 'iff' | 'set' | 'scope' | 'value'
+type Kind = 'ref' | 'calc' | 'iff' | 'update' | 'scope' | 'value'
 
 interface IffInfo { condDesc: string; trueDesc: string; falseDesc: string }
 
@@ -70,7 +70,7 @@ function buildDevNode(key: string, parentPath: string, declVal: any, progNode: a
           trueDesc:  describeExpr(declVal.onTrue),
           falseDesc: describeExpr(declVal.onFalse),
         }; break
-      case 'set': base.setArgCount = getSetArgCount(declVal); break
+      case 'update': base.setArgCount = getSetArgCount(declVal); break
     }
     return base
   }
@@ -145,7 +145,7 @@ const CSS = `
 .dt-b-ref{background:#0d2543;color:#58a6ff}
 .dt-b-calc{background:#1c1040;color:#a78bfa}
 .dt-b-iff{background:#0d2a14;color:#3fb950}
-.dt-b-set{background:#2a1208;color:#f78166}
+.dt-b-update{background:#2a1208;color:#f78166}
 .dt-b-scope{background:#1c2128;color:#6e7681}
 .dt-b-value{background:#1c2128;color:#6e7681}
 .dt-key{color:#79c0ff;flex-shrink:0;font-size:11px}
@@ -264,7 +264,7 @@ function renderNode(
   }
 
   // ── Value display ────────────────────────────────────────────────────────
-  if (node.kind !== 'set' && node.kind !== 'scope') {
+  if (node.kind !== 'update' && node.kind !== 'scope') {
     row.append(colon)
     const valEl = el('span', 'dt-val')
 
@@ -307,7 +307,7 @@ function renderNode(
   }
 
   // ── Action area (set nodes) ──────────────────────────────────────────────
-  if (node.kind === 'set') {
+  if (node.kind === 'update') {
     const area = el('div', 'dt-action-area')
     const argInputs: HTMLInputElement[] = []
 

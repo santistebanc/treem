@@ -1,4 +1,4 @@
-import { ref, calc, iff, set, arg, run, watch, type Expr } from 'treem'
+import { ref, calc, iff, update, arg, run, watch, type Expr } from 'treem'
 import { renderCodePanel } from '../_shared/code-panel'
 import tsSource   from './main.ts?raw'
 import htmlSource from './index.html?raw'
@@ -35,12 +35,12 @@ const store = run({
   [qtyA]:   0,
   [qtyB]:   0,
 
-  toggleTheme: set({ [isDark]: calc(d => !d, [isDark]) }),
-  applyCoupon: set<[string]>({ [coupon]: calc((code: string) => COUPONS[code] ?? 0, [arg<string>(0)]) }),
+  toggleTheme: update({ [isDark]: calc(d => !d, [isDark]) }),
+  applyCoupon: update<[string]>({ [coupon]: calc((code: string) => COUPONS[code] ?? 0, [arg<string>(0)]) }),
 
   products: [
-    { qty: qtyA, subtotal: subtotalA, inc: set({ [qtyA]: inc(qtyA) }), dec: set({ [qtyA]: dec(qtyA) }) },
-    { qty: qtyB, subtotal: subtotalB, inc: set({ [qtyB]: inc(qtyB) }), dec: set({ [qtyB]: dec(qtyB) }) },
+    { qty: qtyA, subtotal: subtotalA, inc: update({ [qtyA]: inc(qtyA) }), dec: update({ [qtyA]: dec(qtyA) }) },
+    { qty: qtyB, subtotal: subtotalB, inc: update({ [qtyB]: inc(qtyB) }), dec: update({ [qtyB]: dec(qtyB) }) },
   ],
 
   cart: { subtotal, savings, total },

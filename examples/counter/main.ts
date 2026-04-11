@@ -1,4 +1,4 @@
-import { ref, calc, set, arg, run, watch } from 'treem'
+import { ref, calc, update, arg, run, watch } from 'treem'
 import { renderCodePanel } from '../_shared/code-panel'
 import tsSource   from './main.ts?raw'
 import htmlSource from './index.html?raw'
@@ -24,10 +24,10 @@ const store = run({
   doubled,
   canDec,
 
-  inc:     set({ [count]: calc((n, s) => n + s, [count, step]) }),
-  dec:     set({ [count]: calc((n, s) => n - s, [count, step]) }),
-  reset:   set({ [count]: 0 }),
-  setStep: set<[number]>({ [step]: arg<number>(0) }),
+  inc:     update({ [count]: calc((n, s) => n + s, [count, step]) }),
+  dec:     update({ [count]: calc((n, s) => n - s, [count, step]) }),
+  reset:   update({ [count]: 0 }),
+  setStep: update<[number]>({ [step]: arg<number>(0) }),
 })
 
 // ─── DOM ─────────────────────────────────────────────────────────────────────

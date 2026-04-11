@@ -1,4 +1,4 @@
-import { isObj, isNode, refSymbols, VALUE, type SetNode } from './nodes.js'
+import { isObj, isNode, refSymbols, eventSymbols, emitEvent, subscribeEvent, VALUE, type UpdateNode, type EventChannel } from './nodes.js'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -21,7 +21,7 @@ export interface Watchable<T> {
 type IsNodeObject<U> = [U] extends [Record<string, { readonly __exprType: any }>] ? true : false
 
 type ProgramNodeOf<T> =
-  T extends SetNode<infer Args> ? (...args: Args) => void :
+  T extends UpdateNode<infer Args> ? (...args: Args) => void :
   T extends { readonly __exprType: infer U } ?
     Watchable<U> & (IsNodeObject<U> extends true ? { [K in Extract<keyof U, string>]: ProgramNodeOf<U[K]> } : {}) :
   T extends readonly any[] ? Array<ProgramNodeOf<T[number]>> & Watchable<any> :
@@ -53,7 +53,10 @@ function removeSubs(subscribers: Map<Def, Set<Subscriber>>, oldDeps: Set<Def>, s
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
-export function watch<T>(target: Watchable<T>, cb: (value: T, prev?: T) => CleanupResult): () => void {
+export function watch<Args extends any[]>(channel: EventChannel<Args>, cb: (...args: Args) => void): () => void
+export function watch<T>(target: Watchable<T>, cb: (value: T, prev?: T) => CleanupResult): () => void
+export function watch(target: any, cb: any): () => void {
+  if (isNode(target) && (target as any).type === 'event') return subscribeEvent(target, cb)
   return target[SUBSCRIBE](cb)
 }
 
@@ -102,25 +105,32 @@ export function run<T extends object>(app: T): ProgramOf<T> {
       case 'arg': return currentArgs[node.index]
       case 'calc': return node.fn(...node.args.map((a: any) => eval_(a, scope)))
       case 'iff': return eval_(node.cond, scope) ? eval_(node.onTrue, scope) : eval_(node.onFalse, scope)
-      case 'set': return (...args: any[]) => {
+      case 'update': return (...args: any[]) => {
         const prevArgs = currentArgs
         currentArgs = args
-        const updates: [Def, any][] = []
+        const stateUpdates: [Def, any][] = []
+        const pendingEmissions: [symbol, any[]][] = []
         try {
           for (const sym of Object.getOwnPropertySymbols(node.assignments)) {
-            if (!refSymbols.has(sym)) continue
-            const def = findDef(sym, scope)
-            if (!def) continue
-            const next = eval_((node.assignments as any)[sym], scope)
-            if (next !== def.value) updates.push([def, next])
+            if (refSymbols.has(sym)) {
+              const def = findDef(sym, scope)
+              if (!def) continue
+              const next = eval_((node.assignments as any)[sym], scope)
+              if (next !== def.value) stateUpdates.push([def, next])
+            } else if (eventSymbols.has(sym)) {
+              const argExprs: any[] = (node.assignments as any)[sym]
+              const evaluated = argExprs.map((a: any) => eval_(a, scope))
+              pendingEmissions.push([sym, evaluated])
+            }
           }
         } catch (err) {
-          console.error('[treem] set aborted:', err)
+          console.error('[treem] update aborted:', err)
           currentArgs = prevArgs
           return
         }
-        for (const [def, next] of updates) def.value = next
-        if (updates.length > 0) propagate(updates.map(([def]) => def), subscribers)
+        for (const [def, next] of stateUpdates) def.value = next
+        if (stateUpdates.length > 0) propagate(stateUpdates.map(([def]) => def), subscribers)
+        for (const [sym, emitArgs] of pendingEmissions) emitEvent(sym, emitArgs)
         currentArgs = prevArgs
       }
     }
