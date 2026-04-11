@@ -7,10 +7,10 @@ A small declarative state management library. You describe your app as a plain o
 ## Quick look
 
 ```ts
-import { ctx, calc, iff, set, arg, run, watch } from 'treem'
+import { ref, calc, iff, set, arg, run, watch } from 'treem'
 
-const theme = ctx<'light' | 'dark'>('theme')
-const lang  = ctx<'en' | 'es'>('lang')
+const theme = ref<'light' | 'dark'>('theme')
+const lang  = ref<'en' | 'es'>('lang')
 
 // extract conditions into named expressions — keeps the tree readable
 const isDark  = calc(t => t === 'dark',  [theme])
@@ -54,20 +54,20 @@ app.toggleTheme()    // → { background: '#fff', foreground: '#111', welcome: '
 
 ## Primitives
 
-### `ctx` — state slot
+### `ref` — state slot
 
 A named piece of state. Use it as an object key to define it, and pass it as an argument to read from it. Provide a type parameter for downstream inference.
 
 ```ts
-const count  = ctx<number>('count')
-const isDark = ctx<boolean>('isDark')
-const user   = ctx<string>('user')
+const count  = ref<number>('count')
+const isDark = ref<boolean>('isDark')
+const user   = ref<string>('user')
 ```
 
-A ctx ref is itself an expression — it can appear anywhere a value is expected in the tree, not just as a key or calc argument. No wrapper needed:
+A ref is itself an expression — it can appear anywhere a value is expected in the tree, not just as a key or calc argument. No wrapper needed:
 
 ```ts
-const x = ctx<number>('x')
+const x = ref<number>('x')
 
 {
   val:     x,                          // read x directly — no calc wrapper needed
@@ -79,15 +79,15 @@ const x = ctx<number>('x')
 
 ### `calc` — derived value
 
-A computed value that reads from one or more expressions. Argument types are inferred from the type parameters of any `ctx` or `calc` nodes passed in.
+A computed value that reads from one or more expressions. Argument types are inferred from the type parameters of any `ref` or `calc` nodes passed in.
 
 ```ts
-const count = ctx<number>('count')
+const count = ref<number>('count')
 
-// reads from a ctx
+// reads from a ref
 const doubled = calc(n => n * 2, [count])
 
-// reads from a literal and a ctx
+// reads from a literal and a ref
 const total = calc((price, qty) => price * qty, [9.99, count])
 
 // calcs can be nested freely
@@ -115,8 +115,8 @@ import { Expr } from 'treem'
 const multiply = (a: Expr<number>, b: Expr<number>) =>
   calc((x, y) => x * y, [a, b])
 
-multiply(count, 3)        // ctx × literal
-multiply(doubled, count)  // calc × ctx
+multiply(count, 3)        // ref × literal
+multiply(doubled, count)  // calc × ref
 ```
 
 ### `iff` — conditional
@@ -129,7 +129,7 @@ iff(isDark, '#1a1a1a', '#ffffff')
 iff(isLoggedIn, userPanel, loginForm)
 
 // branches can be any expression
-const x = ctx<number>('x')
+const x = ref<number>('x')
 iff(calc(n => n > 0, [x]), 'positive', 'non-positive')
 ```
 
@@ -158,7 +158,7 @@ iff(flag, { val: 1 }, 'fallback')
 `onFalse` is optional — omitting it means the value is `undefined` when the condition is false. Useful for optional UI elements or error messages that only exist in one state:
 
 ```ts
-const hasError = ctx<boolean>('hasError')
+const hasError = ref<boolean>('hasError')
 
 iff(hasError, 'Something went wrong')
 // true  → 'Something went wrong'
@@ -175,8 +175,8 @@ iff(hasError, { message: 'Something went wrong', code: 500 })
 Declares a state mutation. All assignments are evaluated from the current state before any are applied, making swaps safe:
 
 ```ts
-const a = ctx<number>('a')
-const b = ctx<number>('b')
+const a = ref<number>('a')
+const b = ref<number>('b')
 
 // increments count
 const increment = set({ [count]: calc(n => n + 1, [count]) })
@@ -193,7 +193,7 @@ const swap = set({ [a]: b, [b]: a })
 Reads a runtime argument passed when an action is called. Combine with `set` to make parameterized actions. The type parameter on `set<Args>` declares the full argument tuple:
 
 ```ts
-const price = ctx<number>('price')
+const price = ref<number>('price')
 
 const app = {
   [price]: 10,
@@ -221,7 +221,7 @@ store.cart.total()   // read a single value
 store.cart.add()     // call an action
 ```
 
-Resolved objects contain only string-keyed children — ctx definitions (`[ctx]: value`) are state slots, not output keys.
+Resolved objects contain only string-keyed children — ref definitions (`[ref]: value`) are state slots, not output keys.
 
 Each call to `run()` creates a fully independent instance with its own state:
 
@@ -277,14 +277,14 @@ watch(store.items,   v => console.log('items:', v))
 
 The app is a plain object where:
 
-- **`[ctx]: value`** — defines a ctx at this scope with an initial value (can be a formula)
+- **`[ref]: value`** — defines a ref at this scope with an initial value (can be a formula)
 - **`key: value`** — a derived value or nested scope
 - **`key: set({...})`** — an action
 - **`key: [...]`** — an array of values or nested scopes
 
 ```ts
-const qty  = ctx<number>('qty')
-const name = ctx<string>('name')
+const qty  = ref<number>('qty')
+const name = ref<string>('name')
 
 const app = {
   [name]: 'Guest',                            // mutable state
@@ -305,10 +305,10 @@ const app = {
 
 ## Arrays
 
-Arrays work naturally in the tree. Object elements become nested scopes; node elements (calc, iff, ctx refs) are reactive:
+Arrays work naturally in the tree. Object elements become nested scopes; node elements (calc, iff, refs) are reactive:
 
 ```ts
-const active = ctx<boolean>('active')
+const active = ref<boolean>('active')
 
 const app = {
   [active]: false,
@@ -333,13 +333,13 @@ watch(store.tabs, tabs => console.log('tabs:', tabs))
 
 ## Scoping rules
 
-Each nested object is a scope. A ctx defined with `[ctx]: value` is local to that scope and its descendants.
+Each nested object is a scope. A ref defined with `[ref]: value` is local to that scope and its descendants.
 
-**A ctx formula may only read from ctxs defined in ancestor scopes — not siblings.** This keeps the dependency graph acyclic and ensures correct update ordering.
+**A ref formula may only read from refs defined in ancestor scopes — not siblings.** This keeps the dependency graph acyclic and ensures correct update ordering.
 
 ```ts
-const price = ctx<number>('price')
-const qty   = ctx<number>('qty')
+const price = ref<number>('price')
+const qty   = ref<number>('qty')
 
 const app = {
   [price]: 9.99,           // root price
@@ -359,18 +359,18 @@ const app = {
 }
 ```
 
-When `set` targets a ctx, it resolves to the nearest ancestor definition visible from the action's location — the same rule that reads use.
+When `set` targets a ref, it resolves to the nearest ancestor definition visible from the action's location — the same rule that reads use.
 
 ---
 
 ## Reactivity
 
-- **Mutable state** — `[qty]: 0` defines a ctx that can be freely updated with `set`.
-- **Reactive formula** — `[qty]: calc(...)` defines a ctx whose value is driven by a formula. Whenever the formula's dependencies change, the ctx resets to the formula result. Any manual `set` is overwritten on the next dependency change.
+- **Mutable state** — `[qty]: 0` defines a ref that can be freely updated with `set`.
+- **Reactive formula** — `[qty]: calc(...)` defines a ref whose value is driven by a formula. Whenever the formula's dependencies change, the ref resets to the formula result. Any manual `set` is overwritten on the next dependency change.
 
 ```ts
-const isPro = ctx<boolean>('isPro')
-const qty   = ctx<number>('qty')
+const isPro = ref<boolean>('isPro')
+const qty   = ref<number>('qty')
 
 const app = {
   [isPro]: false,
@@ -401,9 +401,9 @@ When `iff` distributes over objects, it creates a scope where each key is an ind
 You can import `VALUE` to read this directly when you need it:
 
 ```ts
-import { ctx, iff, set, run, VALUE } from 'treem'
+import { ref, iff, set, run, VALUE } from 'treem'
 
-const flag = ctx<boolean>('flag')
+const flag = ref<boolean>('flag')
 
 const store = run({
   [flag]: false,
@@ -427,15 +427,15 @@ This is mostly an implementation detail you won't need to reach for — calling 
 A multi-step signup wizard that puts every feature to work: nested scopes, reactive formulas, distributed conditionals, parameterized actions, arrays, and watchers.
 
 ```ts
-import { ctx, calc, iff, set, run, watch, type Expr } from 'treem'
+import { ref, calc, iff, set, run, watch, type Expr } from 'treem'
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
-const step   = ctx<number>('step')    // 1 | 2 | 3
-const name   = ctx<string>('name')
-const email  = ctx<string>('email')
-const plan   = ctx<'free' | 'pro'>('plan')
-const agreed = ctx<boolean>('agreed')
+const step   = ref<number>('step')    // 1 | 2 | 3
+const name   = ref<string>('name')
+const email  = ref<string>('email')
+const plan   = ref<'free' | 'pro'>('plan')
+const agreed = ref<boolean>('agreed')
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -492,7 +492,7 @@ const wizard = run({
   agree:   set({ [agreed]: true }),
 
   // ── Step 3: review ───────────────────────────────────────────────────────────
-  //    reads ancestor ctx refs — scoping in action
+  //    reads ancestor refs — scoping in action
   summary: {
     greeting: calc(n => `Hi ${n}, you're almost done.`, [name]),
     line1:    calc(e => `Email: ${e}`, [email]),

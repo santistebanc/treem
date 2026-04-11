@@ -8,7 +8,7 @@ This document explains how the library works from the inside. It walks through t
 
 Treem has a clean separation between two phases:
 
-1. **Declaration** — calling `ctx`, `calc`, `iff`, `set` builds a plain description of your app as a tree of JavaScript objects. No state exists yet, nothing is live.
+1. **Declaration** — calling `ref`, `calc`, `iff`, `set` builds a plain description of your app as a tree of JavaScript objects. No state exists yet, nothing is live.
 2. **Instantiation** — calling `run(app)` reads that description, allocates real state, evaluates all formulas once, and returns a callable interface.
 
 This separation means the declarative tree is static and reusable. You could call `run(app)` ten times and get ten completely independent instances.
@@ -20,8 +20,8 @@ This separation means the declarative tree is static and reusable. You could cal
 Every explanation below refers back to this small app. It is intentionally minimal — one piece of state, one derived value, one action with an argument:
 
 ```ts
-const count  = ctx<number>('count')
-const step   = ctx<number>('step')
+const count  = ref<number>('count')
+const step   = ref<number>('step')
 const doubled = calc(n => n * 2, [count])
 
 const store = run({
@@ -38,28 +38,30 @@ After each phase of `run()` you will see what the key internal variables actuall
 
 ## Phase 1: The declarative API
 
-### `ctx`
+### `ref`
 
 ```ts
-const count = ctx<number>('count')
+const count = ref<number>('count')
 ```
 
-`ctx` creates two things:
+`ref` creates two things:
 
-- A **unique `Symbol`** (via `Symbol('count')`) that will be used as an object key to define/read this state slot. This symbol is added to the global `ctxSymbols` set so `run()` can recognize it later.
+- A **unique `Symbol`** (via `Symbol('count')`) that will be used as an object key to define/read this state slot. This symbol is added to the global `refSymbols` set so `run()` can recognise it later.
 - A **marked node object** tagged with a private `NODE` symbol via `Object.defineProperty`.
 
 ```ts
-export function ctx<T = unknown>(ref: string): CtxRef<T> {
-  const sym = Symbol(ref)
-  ctxSymbols.add(sym)
-  return mark({ type: 'ctx' as const, ref, sym, [Symbol.toPrimitive]: () => sym }) as unknown as CtxRef<T>
+export function ref<T = unknown>(name: string): Ref<T> {
+  const sym = Symbol(name)
+  refSymbols.add(sym)
+  return mark({ type: 'ref' as const, name, sym, [Symbol.toPrimitive]: () => sym }) as unknown as Ref<T>
 }
 ```
 
 The `[Symbol.toPrimitive]` trick makes `count` usable as an object key directly — `{ [count]: 0 }` calls `toPrimitive` to get the underlying symbol, which is how the tree definition works. The node object stores `sym` as a direct named property so `eval_` can access it as `node.sym` without having to call `Symbol.toPrimitive` at runtime.
 
-The `CtxRef<T>` type is a lie — it's typed as `symbol & { __exprType: T }` even though the runtime value is an object. This is intentional: it makes TypeScript accept it as an object key (`[count]: 0`) while also carrying the type parameter `T` for inference in `calc` and `iff`.
+The `Ref<T>` type is a lie — it's typed as `symbol & { __exprType: T }` even though the runtime value is an object. This is intentional: it makes TypeScript accept it as an object key (`[count]: 0`) while also carrying the type parameter `T` for inference in `calc` and `iff`.
+
+The `name` property on the internal node object replaces the old `ref` property (renamed to avoid shadowing the function parameter in earlier versions).
 
 `mark` sets the `NODE` symbol on the object as a non-enumerable, non-writable property, making it invisible to normal object inspection:
 
@@ -68,12 +70,12 @@ const mark = <T extends object>(n: T) =>
   Object.defineProperty(n, NODE, { value: true }) as T
 ```
 
-> **Example snapshot — after `ctx<number>('count')` and `ctx<number>('step')`:**
+> **Example snapshot — after `ref<number>('count')` and `ref<number>('step')`:**
 > ```
-> count  = { type: 'ctx', ref: 'count', sym: sym_count, [Symbol.toPrimitive]: () => sym_count }  [NODE]=true
-> step   = { type: 'ctx', ref: 'step',  sym: sym_step,  [Symbol.toPrimitive]: () => sym_step  }  [NODE]=true
+> count  = { type: 'ref', name: 'count', sym: sym_count, [Symbol.toPrimitive]: () => sym_count }  [NODE]=true
+> step   = { type: 'ref', name: 'step',  sym: sym_step,  [Symbol.toPrimitive]: () => sym_step  }  [NODE]=true
 >
-> ctxSymbols = Set { sym_count, sym_step }
+> refSymbols = Set { sym_count, sym_step }
 > ```
 > `count` and `step` are node objects. When used as object keys (`{ [count]: 0 }`),
 > `Symbol.toPrimitive` is called and returns `sym_count` — so the key in the object is
@@ -86,7 +88,7 @@ const mark = <T extends object>(n: T) =>
 const doubled = calc(n => n * 2, [count])
 ```
 
-Returns a marked node. Nothing is computed. The `args` array is a list of expressions — any mix of `CtxRef`, `CalcNode`, `IffNode`, or plain values — that will be evaluated at runtime and passed to `fn`.
+Returns a marked node. Nothing is computed. The `args` array is a list of expressions — any mix of `Ref`, `CalcNode`, `IffNode`, or plain values — that will be evaluated at runtime and passed to `fn`.
 
 ```ts
 export function calc<Args extends readonly any[], R>(
@@ -97,7 +99,7 @@ export function calc<Args extends readonly any[], R>(
 }
 ```
 
-Type inference flows through `UnwrapArgs`: if `count` is `CtxRef<number>`, then `args: [count]` gives `fn` a parameter of type `number`. Literals pass through as-is.
+Type inference flows through `UnwrapArgs`: if `count` is `Ref<number>`, then `args: [count]` gives `fn` a parameter of type `number`. Literals pass through as-is.
 
 ```ts
 type UnwrapArgs<T extends readonly any[]> = { [K in keyof T]: Unwrap<T[K]> }
@@ -239,7 +241,7 @@ export function arg<T = unknown>(index: number): ArgNode<T> {
 ```ts
 interface Scope {
   parent:    Scope | null
-  defs:      Map<symbol, Def>      // ctx definitions at this level
+  defs:      Map<symbol, Def>      // ref definitions at this level
   children:  Record<string, any>   // nested scopes or raw nodes
   valueNode?: any                  // the VALUE node if present (mixed iff branch)
 }
@@ -251,7 +253,7 @@ function build(tree: object, parent: Scope | null): Scope {
   scopes.add(scope)                               // register in WeakSet
   for (const sym of Object.getOwnPropertySymbols(tree)) {
     if (sym === VALUE) { scope.valueNode = (tree as any)[sym]; continue }
-    if (!ctxSymbols.has(sym)) continue            // skip non-ctx symbols
+    if (!refSymbols.has(sym)) continue            // skip non-ref symbols
     const def: Def = { formula: (tree as any)[sym], value: undefined, scope, deps: new Set() }
     scope.defs.set(sym, def)
     allDefs.push(def)                             // flat registry for propagation
@@ -265,7 +267,7 @@ function build(tree: object, parent: Scope | null): Scope {
 
 For each level of the tree:
 
-1. **Symbol keys** are inspected. If a symbol is in `ctxSymbols` it is a ctx definition — a `Def` is created and added to `scope.defs` and the flat `allDefs` array. `VALUE` is handled specially: its node is stored as `scope.valueNode`.
+1. **Symbol keys** are inspected. If a symbol is in `refSymbols` it is a ref definition — a `Def` is created and added to `scope.defs` and the flat `allDefs` array. `VALUE` is handled specially: its node is stored as `scope.valueNode`.
 2. **String keys** are recursively processed by `buildNode`. If the value is a plain object (not a node), it recurses into `build`. If it is an array, each element is processed. If it is a node or a primitive, it is stored as-is in `scope.children`.
 
 ```ts
@@ -283,11 +285,11 @@ const scopes = new WeakSet<object>()
 const isScope = (x: unknown): x is Scope => isObj(x) && scopes.has(x as object)
 ```
 
-After `build`, every scope node in the tree has been mirrored into a `Scope`. All ctx definitions are registered as `Def` objects in `allDefs` in tree-traversal order. No values have been computed yet:
+After `build`, every scope node in the tree has been mirrored into a `Scope`. All ref definitions are registered as `Def` objects in `allDefs` in tree-traversal order. No values have been computed yet:
 
 ```ts
 interface Def {
-  formula: any       // the node or value that defines this ctx's initial/reactive value
+  formula: any       // the node or value that defines this ref's initial/reactive value
   value:   any       // the current live value — undefined until reeval
   scope:   Scope     // the scope this def belongs to
   deps:    Set<Def>  // which other Defs this one reads from (filled during reeval)
@@ -314,7 +316,7 @@ interface Def {
 > ]
 > ```
 > `doubled` and `inc` are nodes (recognized by `isNode`), so `buildNode` stores them directly
-> in `children` without recursing. Only `[sym_count]: 0` and `[sym_step]: 1` are ctx
+> in `children` without recursing. Only `[sym_count]: 0` and `[sym_step]: 1` are ref
 > definitions — they become `Def` entries.
 
 ### Step 2: Initial evaluation — `reeval` all defs
@@ -350,7 +352,7 @@ function reeval(def: Def, subscribers: Map<Def, Set<Subscriber>>): boolean {
 }
 ```
 
-The key mechanism is the module-level `tracking` pointer. While `reeval` runs, `tracking` is set to the current def. Any time `eval_` evaluates a `ctx` node, it adds the resolved def to `tracking.deps`. This is how the dependency graph is built without any explicit subscription API — it falls out naturally from just evaluating the formula:
+The key mechanism is the module-level `tracking` pointer. While `reeval` runs, `tracking` is set to the current def. Any time `eval_` evaluates a `ref` node, it adds the resolved def to `tracking.deps`. This is how the dependency graph is built without any explicit subscription API — it falls out naturally from just evaluating the formula:
 
 ```ts
 let tracking: Def | null = null
@@ -363,7 +365,7 @@ let watchTracking: Watcher | null = null
 function eval_(node: any, scope: Scope): any {
   if (!isNode(node)) return node    // literal value — return as-is
   switch (node.type) {
-    case 'ctx': {
+    case 'ref': {
       const def = findDef(node.sym, scope)   // node.sym is the symbol stored directly on the node
       if (def && tracking)      tracking.deps.add(def)      // record dep for reeval
       if (def && watchTracking) watchTracking.deps.add(def) // record dep for watcher
@@ -377,7 +379,7 @@ function eval_(node: any, scope: Scope): any {
 }
 ```
 
-The scope chain walk in `ctx` evaluation is how lexical scoping works. Starting from the current scope, `findDef` walks up through `parent` pointers until it finds a scope whose `defs` map contains the symbol, or returns `undefined` if none does:
+The scope chain walk in `ref` evaluation is how lexical scoping works. Starting from the current scope, `findDef` walks up through `parent` pointers until it finds a scope whose `defs` map contains the symbol, or returns `undefined` if none does:
 
 ```ts
 function findDef(sym: symbol, scope: Scope): Def | undefined {
@@ -386,7 +388,7 @@ function findDef(sym: symbol, scope: Scope): Def | undefined {
 }
 ```
 
-After the initial evaluation loop, every ctx has a computed value and every def has a populated `deps` set.
+After the initial evaluation loop, every ref has a computed value and every def has a populated `deps` set.
 
 > **Example snapshot — after `for (const def of allDefs) reeval(def)`:**
 > ```
@@ -396,7 +398,7 @@ After the initial evaluation loop, every ctx has a computed value and every def 
 > ]
 > ```
 > Both formulas are plain literals (`0` and `1`), so `eval_` returns them immediately
-> without entering the node switch. No ctx nodes are read, so `deps` stays empty for both.
+> without entering the node switch. No ref nodes are read, so `deps` stays empty for both.
 > If instead `[count]` had been initialized to `calc(s => s * 2, [step])`, then after
 > `reeval`, `count.deps` would be `Set { stepDef }`.
 
@@ -413,11 +415,12 @@ function callable(node: any, scope: Scope, subscribers: Map<Def, Set<Subscriber>
   }
   if (isScope(node)) {
     const fn: any = () => resolve(node)
-    for (const [k, child] of Object.entries(node.children)) fn[k] = callable(child, node, subscribers)
+    for (const [k, child] of Object.entries(node.children))
+      Object.defineProperty(fn, k, { value: callable(child, node, subscribers), writable: true, configurable: true, enumerable: true })
     fn[SUBSCRIBE] = makeSubscribe(() => resolve(node), subscribers)
     return fn
   }
-  // leaf node (calc, iff, ctx ref) or set node
+  // leaf node (calc, iff, ref) or set node
   const fn: any = (...args: any[]) => {
     const v = eval_(node, scope)
     return typeof v === 'function' ? v(...args) : v   // set nodes return a function — call it
@@ -428,7 +431,7 @@ function callable(node: any, scope: Scope, subscribers: Map<Def, Set<Subscriber>
 ```
 
 - **Scope nodes** become functions: `() => resolve(scope)`. Each string-keyed child is attached as a property by recursing into `callable`. A `[SUBSCRIBE]` property is attached for `watch` support.
-- **Leaf nodes** (`calc`, `iff`, `ctx` refs) become functions that call `eval_`. For set nodes, `eval_` returns the action closure, so calling `store.inc()` evaluates the set node, gets the closure, and immediately calls it with the passed args.
+- **Leaf nodes** (`calc`, `iff`, `ref`s) become functions that call `eval_`. For set nodes, `eval_` returns the action closure, so calling `store.inc()` evaluates the set node, gets the closure, and immediately calls it with the passed args.
 - **Arrays** become arrays of callable items with a `[SUBSCRIBE]` on the array itself.
 
 `resolve(scope)` is the inverse of `build` — it walks the scope tree and constructs a plain object by evaluating every child. It checks `valueNode` first: if present and non-undefined, that value wins (the mixed-branch `iff` case):
@@ -469,7 +472,7 @@ case 'set': return (...args: any[]) => {
   const updates: [Def, any][] = []
   try {
     for (const sym of Object.getOwnPropertySymbols(node.assignments)) {
-      if (!ctxSymbols.has(sym)) continue
+      if (!refSymbols.has(sym)) continue
       const def = findDef(sym, scope)
       if (!def) continue
       const next = eval_((node.assignments as any)[sym], scope)
@@ -566,7 +569,7 @@ This is O(affected) rather than O(all defs). A 1000-def tree where only 3 defs a
 > //   dirty = Set { countDef }, queue = [countDef]
 > //   pass 1 — BFS:
 > //     subscribers.get(countDef) → no Def subscribers (doubled is a calc in children,
-> //     not a ctx Def) → queue exhausted
+> //     not a ref Def) → queue exhausted
 > //   pass 2 — watchers:
 > //     w.deps = Set { countDef } → hit! countDef ∈ dirty
 > //     w.track() re-evaluates: eval_(count) → 1, fn(1) → 2
@@ -582,7 +585,7 @@ After a branch switch in an `iff`, the set of deps for a watcher or def can chan
 const oldDeps = def.deps
 def.deps = new Set()
 tracking = def
-// ... eval_ runs, adding to def.deps as ctx nodes are encountered
+// ... eval_ runs, adding to def.deps as ref nodes are encountered
 removeSubs(subscribers, oldDeps, def)
 for (const dep of def.deps) addSub(subscribers, dep, def)
 
@@ -590,7 +593,7 @@ for (const dep of def.deps) addSub(subscribers, dep, def)
 const oldDeps = w.deps
 w.deps = new Set()
 watchTracking = w
-// ... getValue() runs, adding to w.deps as ctx nodes are encountered
+// ... getValue() runs, adding to w.deps as ref nodes are encountered
 removeSubs(subscribers, oldDeps, w)
 for (const dep of w.deps) addSub(subscribers, dep, w)
 ```
@@ -643,7 +646,7 @@ function makeSubscribe(getValue: () => any, subscribers: Map<Def, Set<Subscriber
 `watchTracking` is a second module-level pointer (alongside `tracking`) used exclusively for watcher dep collection. It is separate from `tracking` so that a watcher evaluating its expression doesn't pollute a def's dep set if it happens to be triggered during a `reeval`. Each uses its own pointer and they don't interfere:
 
 ```ts
-case 'ctx': {
+case 'ref': {
   const def = findDef(node.sym, scope)
   if (def && tracking)      tracking.deps.add(def)      // add to current def's deps
   if (def && watchTracking) watchTracking.deps.add(def) // add to current watcher's deps
@@ -651,7 +654,7 @@ case 'ctx': {
 }
 ```
 
-Both pointers can be non-null at the same time — a watcher tracks while reading from ctx nodes that are also deps of defs.
+Both pointers can be non-null at the same time — a watcher tracks while reading from ref nodes that are also deps of defs.
 
 The callback can optionally return a cleanup function. It is stored on `w.cleanup` and called before each subsequent `cb` invocation (so the previous side effect is torn down before the next one starts) and on unsubscribe. If the callback returns a non-function, the cleanup field stays `undefined`.
 
@@ -703,7 +706,7 @@ This is the same approach used by Vue's effect system and Solid's reactive primi
 ```
 Declaration phase (module load time)
 ─────────────────────────────────────
-ctx()  →  { type:'ctx',  ref, sym, [Symbol.toPrimitive]: ()=>sym }  tagged with NODE
+ref()  →  { type:'ref',  name, sym, [Symbol.toPrimitive]: ()=>sym }  tagged with NODE
 calc() →  { type:'calc', fn, args }                                  tagged with NODE
 iff()  →  { type:'iff',  cond, onTrue, onFalse }                     tagged with NODE
          or plain object { key: iffNode, ... }  (distributed — not a node)
@@ -715,7 +718,7 @@ run(app)
 build(app, null)
   for each symbol key:
     sym === VALUE         → scope.valueNode = node
-    sym in ctxSymbols     → Def { formula, value:undefined, scope, deps:new Set() }
+    sym in refSymbols    → Def { formula, value:undefined, scope, deps:new Set() }
                             → scope.defs.set(sym, def)
                             → allDefs.push(def)
   for each string key:
@@ -726,7 +729,7 @@ build(app, null)
 for (const def of allDefs) reeval(def, subscribers)
   tracking = def
   eval_(def.formula, def.scope)
-    'ctx'  → findDef(node.sym, scope) walks scope.parent chain
+    'ref'  → findDef(node.sym, scope) walks scope.parent chain
              → tracking.deps.add(foundDef)
              → return foundDef.value
     'calc' → eval each arg recursively, call fn(results)
@@ -788,7 +791,7 @@ propagate(changed[], subscribers)
 
 **Nodes are plain objects.** `calc(...)` returns `{ type: 'calc', fn, args }`. No classes, no prototypes. The `NODE` symbol (set via `Object.defineProperty` with no enumerable/writable flags) marks them invisibly. This keeps the API transparent — you can `console.log` a node and read its structure.
 
-**Scopes mirror the tree.** Rather than a flat registry of every reactive value, state is organized into the same nested shape as the app tree. Lookups walk up the scope chain, which is how lexical shadowing of ctx values is implemented. This makes scoping intuitive and composable.
+**Scopes mirror the tree.** Rather than a flat registry of every reactive value, state is organized into the same nested shape as the app tree. Lookups walk up the scope chain, which is how lexical shadowing of ref values is implemented. This makes scoping intuitive and composable.
 
 **Deps are re-recorded on every evaluation.** There is no separate "subscribe" step. Deps emerge naturally from evaluation. After a branch switch, old deps are silently discarded and new ones are recorded. This makes conditional reactivity correct without any explicit tracking of which branches are active.
 
