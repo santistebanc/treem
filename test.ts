@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { ctx, calc, iff, set, arg, run, watch, type Expr } from './src/index'
+import { ref, calc, iff, set, arg, run, watch, type Expr } from './src/index'
 
 let passed = 0
 let failed = 0
@@ -20,43 +20,43 @@ function section(name: string) {
   console.log(`\n${name}`)
 }
 
-// ─── ctx ─────────────────────────────────────────────────────────────────────
+// ─── ref ─────────────────────────────────────────────────────────────────────
 
-section('ctx')
+section('ref')
 
 test('defines initial literal value', () => {
-  const x = ctx<number>('x')
+  const x = ref<number>('x')
   const p = run({ [x]: 42, val: calc(n => n, [x]) })
   assert.equal(p.val(), 42)
 })
 
-test('multiple independent ctx refs', () => {
-  const a = ctx<number>('a')
-  const b = ctx<number>('b')
+test('multiple independent ref refs', () => {
+  const a = ref<number>('a')
+  const b = ref<number>('b')
   const p = run({ [a]: 1, [b]: 2, sum: calc((a, b) => a + b, [a, b]) })
   assert.equal(p.sum(), 3)
 })
 
-test('ctx not defined in tree resolves to undefined', () => {
-  const x = ctx<number>('x')
+test('ref not defined in tree resolves to undefined', () => {
+  const x = ref<number>('x')
   const p = run({ val: calc(v => v, [x]) })
   assert.equal(p.val(), undefined)
 })
 
-test('ctx defined with false is falsy but readable', () => {
-  const flag = ctx<boolean>('flag')
+test('ref defined with false is falsy but readable', () => {
+  const flag = ref<boolean>('flag')
   const p = run({ [flag]: false, val: calc(f => f, [flag]) })
   assert.equal(p.val(), false)
 })
 
-test('ctx defined with 0 is readable', () => {
-  const n = ctx<number>('n')
+test('ref defined with 0 is readable', () => {
+  const n = ref<number>('n')
   const p = run({ [n]: 0, val: calc(n => n, [n]) })
   assert.equal(p.val(), 0)
 })
 
-test('ctx defined with null is readable', () => {
-  const x = ctx<null>('x')
+test('ref defined with null is readable', () => {
+  const x = ref<null>('x')
   const p = run({ [x]: null, val: calc(v => v, [x]) })
   assert.equal(p.val(), null)
 })
@@ -66,26 +66,26 @@ test('ctx defined with null is readable', () => {
 section('calc')
 
 test('basic derived value', () => {
-  const x = ctx<number>('x')
+  const x = ref<number>('x')
   const p = run({ [x]: 10, doubled: calc(n => n * 2, [x]) })
   assert.equal(p.doubled(), 20)
 })
 
-test('multiple ctx args', () => {
-  const a = ctx<number>('a')
-  const b = ctx<number>('b')
+test('multiple ref args', () => {
+  const a = ref<number>('a')
+  const b = ref<number>('b')
   const p = run({ [a]: 3, [b]: 4, sum: calc((a, b) => a + b, [a, b]) })
   assert.equal(p.sum(), 7)
 })
 
-test('mixed ctx and literal args', () => {
-  const x = ctx<number>('x')
+test('mixed ref and literal args', () => {
+  const x = ref<number>('x')
   const p = run({ [x]: 5, plus10: calc((n, c) => n + c, [x, 10]) })
   assert.equal(p.plus10(), 15)
 })
 
 test('nested calcs', () => {
-  const x = ctx<number>('x')
+  const x = ref<number>('x')
   const double = (v: Expr<number>) => calc((n: number) => n * 2, [v])
   const p = run({ [x]: 3, quad: double(double(x)) })
   assert.equal(p.quad(), 12)
@@ -96,16 +96,16 @@ test('calc with no args (constant)', () => {
   assert.equal(p.val(), 42)
 })
 
-test('calc updates reactively when ctx changes', () => {
-  const x = ctx<number>('x')
+test('calc updates reactively when ref changes', () => {
+  const x = ref<number>('x')
   const p = run({ [x]: 1, doubled: calc(n => n * 2, [x]), inc: set({ [x]: calc(n => n + 1, [x]) }) })
   assert.equal(p.doubled(), 2)
   p.inc()
   assert.equal(p.doubled(), 4)
 })
 
-test('ctx defined with object as initial value', () => {
-  const config = ctx<{ debug: boolean }>('config')
+test('ref defined with object as initial value', () => {
+  const config = ref<{ debug: boolean }>('config')
   const p = run({ [config]: { debug: true }, isDebug: calc(c => c.debug, [config]) })
   assert.equal(p.isDebug(), true)
 })
@@ -115,19 +115,19 @@ test('ctx defined with object as initial value', () => {
 section('iff — scalar branches')
 
 test('picks true branch', () => {
-  const flag = ctx<boolean>('flag')
+  const flag = ref<boolean>('flag')
   const p = run({ [flag]: true, val: iff(flag, 'yes', 'no') })
   assert.equal(p.val(), 'yes')
 })
 
 test('picks false branch', () => {
-  const flag = ctx<boolean>('flag')
+  const flag = ref<boolean>('flag')
   const p = run({ [flag]: false, val: iff(flag, 'yes', 'no') })
   assert.equal(p.val(), 'no')
 })
 
-test('switches when ctx changes', () => {
-  const flag = ctx<boolean>('flag')
+test('switches when ref changes', () => {
+  const flag = ref<boolean>('flag')
   const p = run({ [flag]: false, val: iff(flag, 'yes', 'no'), on: set({ [flag]: true }) })
   assert.equal(p.val(), 'no')
   p.on()
@@ -135,14 +135,14 @@ test('switches when ctx changes', () => {
 })
 
 test('cond can be a calc node', () => {
-  const x = ctx<number>('x')
+  const x = ref<number>('x')
   const p = run({ [x]: 5, val: iff(calc(n => n > 3, [x]), 'big', 'small') })
   assert.equal(p.val(), 'big')
 })
 
 test('cond can be an iff node', () => {
-  const a = ctx<boolean>('a')
-  const b = ctx<boolean>('b')
+  const a = ref<boolean>('a')
+  const b = ref<boolean>('b')
   const p = run({
     [a]: true, [b]: false,
     val: iff(iff(a, b, true), 'yes', 'no'),
@@ -157,38 +157,38 @@ test('cond can be an iff node', () => {
 })
 
 test('branches can be calc nodes', () => {
-  const x = ctx<number>('x')
-  const flag = ctx<boolean>('flag')
+  const x = ref<number>('x')
+  const flag = ref<boolean>('flag')
   const p = run({ [x]: 4, [flag]: true, val: iff(flag, calc(n => n * 2, [x]), calc(n => n + 1, [x])) })
   assert.equal(p.val(), 8)
 })
 
 test('cond with 0 is falsy', () => {
-  const x = ctx<number>('x')
+  const x = ref<number>('x')
   const p = run({ [x]: 0, val: iff(x, 'truthy', 'falsy') })
   assert.equal(p.val(), 'falsy')
 })
 
 test('cond with empty string is falsy', () => {
-  const s = ctx<string>('s')
+  const s = ref<string>('s')
   const p = run({ [s]: '', val: iff(s, 'truthy', 'falsy') })
   assert.equal(p.val(), 'falsy')
 })
 
 test('onFalse omitted — returns value when true', () => {
-  const flag = ctx<boolean>('flag')
+  const flag = ref<boolean>('flag')
   const p = run({ [flag]: true, val: iff(flag, 'present') })
   assert.equal(p.val(), 'present')
 })
 
 test('onFalse omitted — returns undefined when false', () => {
-  const flag = ctx<boolean>('flag')
+  const flag = ref<boolean>('flag')
   const p = run({ [flag]: false, val: iff(flag, 'present') })
   assert.equal(p.val(), undefined)
 })
 
-test('onFalse omitted — switches correctly when ctx changes', () => {
-  const flag = ctx<boolean>('flag')
+test('onFalse omitted — switches correctly when ref changes', () => {
+  const flag = ref<boolean>('flag')
   const p = run({ [flag]: false, val: iff(flag, 42), on: set({ [flag]: true }) })
   assert.equal(p.val(), undefined)
   p.on()
@@ -196,21 +196,21 @@ test('onFalse omitted — switches correctly when ctx changes', () => {
 })
 
 test('onFalse omitted with object branch — keys undefined when false', () => {
-  const flag = ctx<boolean>('flag')
+  const flag = ref<boolean>('flag')
   const p = run({ [flag]: false, s: iff(flag, { x: 1, y: 2 }) })
   assert.equal((p.s as any).x(), undefined)
   assert.equal((p.s as any).y(), undefined)
 })
 
 test('onFalse omitted with object branch — keys resolve when true', () => {
-  const flag = ctx<boolean>('flag')
+  const flag = ref<boolean>('flag')
   const p = run({ [flag]: true, s: iff(flag, { x: 1, y: 2 }) })
   assert.equal((p.s as any).x(), 1)
   assert.equal((p.s as any).y(), 2)
 })
 
 test('onFalse omitted — watch fires when value becomes undefined', () => {
-  const flag = ctx<boolean>('flag')
+  const flag = ref<boolean>('flag')
   const p = run({ [flag]: true, val: iff(flag, 'hi'), off: set({ [flag]: false }) })
   const seen: any[] = []
   watch(p.val, v => void seen.push(v))
@@ -223,7 +223,7 @@ test('onFalse omitted — watch fires when value becomes undefined', () => {
 section('iff — object distribution')
 
 test('distributes both-object branches per key', () => {
-  const flag = ctx<boolean>('flag')
+  const flag = ref<boolean>('flag')
   const p = run({ [flag]: true, s: iff(flag, { a: 1, b: 2 }, { a: 3, b: 4 }) })
   assert.deepEqual(p.s(), { a: 1, b: 2 })
   assert.equal(p.s.a(), 1)
@@ -231,33 +231,33 @@ test('distributes both-object branches per key', () => {
 })
 
 test('distributed keys update independently', () => {
-  const flag = ctx<boolean>('flag')
+  const flag = ref<boolean>('flag')
   const p = run({ [flag]: false, s: iff(flag, { a: 1, b: 2 }, { a: 3, b: 4 }) })
   assert.equal(p.s.a(), 3)
   assert.equal(p.s.b(), 4)
 })
 
 test('key only in true branch → undefined when false', () => {
-  const flag = ctx<boolean>('flag')
+  const flag = ref<boolean>('flag')
   const p = run({ [flag]: false, s: iff(flag, { extra: 99 }, {}) })
   assert.equal((p.s as any).extra(), undefined)
 })
 
 test('key only in false branch → undefined when true', () => {
-  const flag = ctx<boolean>('flag')
+  const flag = ref<boolean>('flag')
   const p = run({ [flag]: true, s: iff(flag, {}, { extra: 99 }) })
   assert.equal((p.s as any).extra(), undefined)
 })
 
 test('one object branch one scalar — value node accessible', () => {
-  const flag = ctx<boolean>('flag')
+  const flag = ref<boolean>('flag')
   const p = run({ [flag]: false, s: iff(flag, { val: 1 }, 'fallback') })
   assert.equal(p.s(), 'fallback')
 })
 
 test('keys with calc values distribute correctly', () => {
-  const flag = ctx<boolean>('flag')
-  const x = ctx<number>('x')
+  const flag = ref<boolean>('flag')
+  const x = ref<number>('x')
   const p = run({
     [flag]: true, [x]: 5,
     s: iff(flag, { res: calc(n => n * 2, [x]) }, { res: calc(n => n + 1, [x]) })
@@ -266,7 +266,7 @@ test('keys with calc values distribute correctly', () => {
 })
 
 test('deeply nested object distribution', () => {
-  const flag = ctx<boolean>('flag')
+  const flag = ref<boolean>('flag')
   const p = run({
     [flag]: true,
     s: iff(flag, { a: { nested: 1 } }, { a: { nested: 2 } })
@@ -275,8 +275,8 @@ test('deeply nested object distribution', () => {
 })
 
 test('distributed iff with set actions', () => {
-  const flag = ctx<boolean>('flag')
-  const x = ctx<number>('x')
+  const flag = ref<boolean>('flag')
+  const x = ref<number>('x')
   const p = run({
     [flag]: false,
     [x]: 0,
@@ -291,8 +291,8 @@ test('distributed iff with set actions', () => {
 })
 
 test('nested iff — both branches are object iffs, keys distribute flat', () => {
-  const a = ctx<boolean>('a')
-  const b = ctx<boolean>('b')
+  const a = ref<boolean>('a')
+  const b = ref<boolean>('b')
   const p = run({
     [a]: true, [b]: false,
     s: iff(a, { x: 1 }, iff(b, { x: 2 }, { x: 3 }))
@@ -301,8 +301,8 @@ test('nested iff — both branches are object iffs, keys distribute flat', () =>
 })
 
 test('nested iff — outer false branch resolves through inner', () => {
-  const a = ctx<boolean>('a')
-  const b = ctx<boolean>('b')
+  const a = ref<boolean>('a')
+  const b = ref<boolean>('b')
   const p = run({
     [a]: false, [b]: true,
     s: iff(a, { x: 1 }, iff(b, { x: 2 }, { x: 3 })),
@@ -317,8 +317,8 @@ test('nested iff — outer false branch resolves through inner', () => {
 })
 
 test('nested iff — disjoint keys across branches', () => {
-  const a = ctx<boolean>('a')
-  const b = ctx<boolean>('b')
+  const a = ref<boolean>('a')
+  const b = ref<boolean>('b')
   const tree = (av: boolean, bv: boolean) =>
     run({ [a]: av, [b]: bv, s: iff(a, { x: 1 }, iff(b, { x: 2, y: 9 }, { x: 3 })) })
 
@@ -331,8 +331,8 @@ test('nested iff — disjoint keys across branches', () => {
 })
 
 test('nested iff — scalar inside object branch', () => {
-  const a = ctx<boolean>('a')
-  const b = ctx<boolean>('b')
+  const a = ref<boolean>('a')
+  const b = ref<boolean>('b')
   const p = run({
     [a]: true, [b]: false,
     s: iff(a, { x: iff(b, 'yes', 'no') }, { x: 'other' })
@@ -341,8 +341,8 @@ test('nested iff — scalar inside object branch', () => {
 })
 
 test('nested iff — scalar outer true, object outer false (mixed branch)', () => {
-  const a = ctx<boolean>('a')
-  const b = ctx<boolean>('b')
+  const a = ref<boolean>('a')
+  const b = ref<boolean>('b')
   const p = run({
     [a]: false, [b]: true,
     s: iff(a, 'scalar', iff(b, { x: 1 }, { x: 2 }))
@@ -357,7 +357,7 @@ test('nested iff — scalar outer true, object outer false (mixed branch)', () =
 section('set')
 
 test('basic mutation', () => {
-  const x = ctx<number>('x')
+  const x = ref<number>('x')
   const p = run({ [x]: 0, val: calc(n => n, [x]), inc: set({ [x]: calc(n => n + 1, [x]) }) })
   p.inc()
   assert.equal(p.val(), 1)
@@ -366,8 +366,8 @@ test('basic mutation', () => {
 })
 
 test('multiple assignments are computed before any are applied (atomic swap)', () => {
-  const a = ctx<number>('a')
-  const b = ctx<number>('b')
+  const a = ref<number>('a')
+  const b = ref<number>('b')
   const p = run({ [a]: 1, [b]: 2, va: calc(n => n, [a]), vb: calc(n => n, [b]), swap: set({ [a]: b, [b]: a }) })
   p.swap()
   assert.equal(p.va(), 2)
@@ -375,8 +375,8 @@ test('multiple assignments are computed before any are applied (atomic swap)', (
 })
 
 test('set with same value skips propagation', () => {
-  const x = ctx<number>('x')
-  const y = ctx<number>('y')
+  const x = ref<number>('x')
+  const y = ref<number>('y')
   let yEvals = 0
   const p = run({
     [x]: 5,
@@ -389,9 +389,9 @@ test('set with same value skips propagation', () => {
   assert.equal(yEvals, 0)
 })
 
-test('set cascade: changing one ctx updates dependents', () => {
-  const x = ctx<number>('x')
-  const y = ctx<number>('y')
+test('set cascade: changing one ref updates dependents', () => {
+  const x = ref<number>('x')
+  const y = ref<number>('y')
   const p = run({
     [x]: 2,
     [y]: calc(n => n * 3, [x]),
@@ -408,15 +408,15 @@ test('set cascade: changing one ctx updates dependents', () => {
 section('arg')
 
 test('basic arg passing', () => {
-  const x = ctx<number>('x')
+  const x = ref<number>('x')
   const p = run({ [x]: 0, val: calc(n => n, [x]), setX: set<[number]>({ [x]: arg<number>(0) }) })
   p.setX(42)
   assert.equal(p.val(), 42)
 })
 
 test('multiple args', () => {
-  const a = ctx<number>('a')
-  const b = ctx<number>('b')
+  const a = ref<number>('a')
+  const b = ref<number>('b')
   const p = run({
     [a]: 0, [b]: 0,
     va: calc(n => n, [a]), vb: calc(n => n, [b]),
@@ -428,7 +428,7 @@ test('multiple args', () => {
 })
 
 test('arg used inside calc', () => {
-  const x = ctx<number>('x')
+  const x = ref<number>('x')
   const p = run({
     [x]: 0,
     val: calc(n => n, [x]),
@@ -441,15 +441,15 @@ test('arg used inside calc', () => {
 })
 
 test('arg defaults to undefined when not passed', () => {
-  const x = ctx<any>('x')
+  const x = ref<any>('x')
   const p = run({ [x]: 'initial', val: calc(v => v, [x]), setX: set({ [x]: arg(0) }) })
   ;(p.setX as any)()
   assert.equal(p.val(), undefined)
 })
 
 test('args are scoped to action call, do not leak', () => {
-  const a = ctx<number>('a')
-  const b = ctx<number>('b')
+  const a = ref<number>('a')
+  const b = ref<number>('b')
   const p = run({
     [a]: 0, [b]: 0,
     va: calc(n => n, [a]), vb: calc(n => n, [b]),
@@ -466,27 +466,27 @@ test('args are scoped to action call, do not leak', () => {
 
 section('scoping')
 
-test('child reads ctx from parent scope', () => {
-  const theme = ctx<string>('theme')
+test('child reads ref from parent scope', () => {
+  const theme = ref<string>('theme')
   const p = run({ [theme]: 'dark', child: { label: calc(t => `theme: ${t}`, [theme]) } })
   assert.equal(p.child.label(), 'theme: dark')
 })
 
 test('nearest ancestor wins', () => {
-  const x = ctx<number>('x')
+  const x = ref<number>('x')
   const p = run({ [x]: 1, child: { [x]: 2, val: calc(n => n, [x]) } })
   assert.equal(p.child.val(), 2)
 })
 
-test('parent ctx unaffected by child definition', () => {
-  const x = ctx<number>('x')
+test('parent ref unaffected by child definition', () => {
+  const x = ref<number>('x')
   const p = run({ [x]: 1, val: calc(n => n, [x]), child: { [x]: 99, val: calc(n => n, [x]) } })
   assert.equal(p.val(), 1)
   assert.equal(p.child.val(), 99)
 })
 
 test('set targets nearest ancestor from action location', () => {
-  const x = ctx<number>('x')
+  const x = ref<number>('x')
   const p = run({
     [x]: 0,
     rootVal: calc(n => n, [x]),
@@ -503,14 +503,14 @@ test('set targets nearest ancestor from action location', () => {
   assert.equal(p.child.childVal(), 11)
 })
 
-test('deep nesting resolves ancestor ctx', () => {
-  const x = ctx<number>('x')
+test('deep nesting resolves ancestor ref', () => {
+  const x = ref<number>('x')
   const p = run({ [x]: 7, a: { b: { c: { val: calc(n => n, [x]) } } } })
   assert.equal(p.a.b.c.val(), 7)
 })
 
-test('sibling ctx is not visible — resolves to undefined', () => {
-  const x = ctx<number>('x')
+test('sibling ref is not visible — resolves to undefined', () => {
+  const x = ref<number>('x')
   const p = run({
     left:  { [x]: 10 },
     right: { val: calc(n => n, [x]) }
@@ -518,8 +518,8 @@ test('sibling ctx is not visible — resolves to undefined', () => {
   assert.equal(p.right.val(), undefined)
 })
 
-test('deeply nested action sets correct scope ctx', () => {
-  const x = ctx<number>('x')
+test('deeply nested action sets correct scope ref', () => {
+  const x = ref<number>('x')
   const p = run({
     [x]: 0,
     rootVal: calc(n => n, [x]),
@@ -535,9 +535,9 @@ test('deeply nested action sets correct scope ctx', () => {
 
 section('reactivity')
 
-test('reactive ctx formula resets when dep changes', () => {
-  const active = ctx<boolean>('active')
-  const x = ctx<number>('x')
+test('reactive ref formula resets when dep changes', () => {
+  const active = ref<boolean>('active')
+  const x = ref<number>('x')
   const p = run({
     [active]: false,
     child: { [x]: iff(active, 10, 0), val: calc(n => n, [x]), on: set({ [active]: true }) }
@@ -548,8 +548,8 @@ test('reactive ctx formula resets when dep changes', () => {
 })
 
 test('manual set is overwritten when formula dep changes', () => {
-  const active = ctx<boolean>('active')
-  const x = ctx<number>('x')
+  const active = ref<boolean>('active')
+  const x = ref<number>('x')
   const p = run({
     [active]: false,
     child: {
@@ -565,10 +565,10 @@ test('manual set is overwritten when formula dep changes', () => {
   assert.equal(p.child.val(), 10)
 })
 
-test('unchanged ctx value halts propagation chain', () => {
-  const x = ctx<number>('x')
-  const y = ctx<string>('y')
-  const z = ctx<number>('z')
+test('unchanged ref value halts propagation chain', () => {
+  const x = ref<number>('x')
+  const y = ref<string>('y')
+  const z = ref<number>('z')
   let zEvals = 0
   const p = run({
     [x]: 0,
@@ -582,7 +582,7 @@ test('unchanged ctx value halts propagation chain', () => {
 })
 
 test('chain of deps propagates correctly', () => {
-  const x = ctx<number>('x')
+  const x = ref<number>('x')
   const p = run({
     [x]: 1,
     a: calc(n => n * 2, [x]),
@@ -596,9 +596,9 @@ test('chain of deps propagates correctly', () => {
   assert.equal(p.b(), 14)
 })
 
-test('multiple ctxs changing in one set — all dependents update', () => {
-  const a = ctx<number>('a')
-  const b = ctx<number>('b')
+test('multiple refs changing in one set — all dependents update', () => {
+  const a = ref<number>('a')
+  const b = ref<number>('b')
   const p = run({
     [a]: 1, [b]: 10,
     sum: calc((a, b) => a + b, [a, b]),
@@ -614,7 +614,7 @@ test('multiple ctxs changing in one set — all dependents update', () => {
 section('watch')
 
 test('fires immediately with current value on subscribe', () => {
-  const x = ctx<number>('x')
+  const x = ref<number>('x')
   const p = run({ [x]: 5, val: calc(n => n * 2, [x]) })
   const seen: number[] = []
   watch(p.val, v => void seen.push(v))
@@ -622,7 +622,7 @@ test('fires immediately with current value on subscribe', () => {
 })
 
 test('callback fires with new value on change', () => {
-  const x = ctx<number>('x')
+  const x = ref<number>('x')
   const p = run({ [x]: 0, val: calc(n => n * 2, [x]), inc: set({ [x]: calc(n => n + 1, [x]) }) })
   const seen: number[] = []
   watch(p.val, v => void seen.push(v))
@@ -632,7 +632,7 @@ test('callback fires with new value on change', () => {
 })
 
 test('unsubscribe stops callbacks', () => {
-  const x = ctx<number>('x')
+  const x = ref<number>('x')
   const p = run({ [x]: 0, val: calc(n => n, [x]), inc: set({ [x]: calc(n => n + 1, [x]) }) })
   const seen: number[] = []
   const unwatch = watch(p.val, v => void seen.push(v))
@@ -646,8 +646,8 @@ test('unsubscribe stops callbacks', () => {
 })
 
 test('watch on subtree only fires for subtree deps', () => {
-  const a = ctx<number>('a')
-  const b = ctx<number>('b')
+  const a = ref<number>('a')
+  const b = ref<number>('b')
   const p = run({
     [a]: 0, [b]: 0,
     left:  { val: calc(n => n, [a]) },
@@ -665,7 +665,7 @@ test('watch on subtree only fires for subtree deps', () => {
 })
 
 test('watch on leaf value', () => {
-  const x = ctx<number>('x')
+  const x = ref<number>('x')
   const p = run({ [x]: 0, val: calc(n => n + 1, [x]), inc: set({ [x]: calc(n => n + 1, [x]) }) })
   const seen: number[] = []
   watch(p.val, v => void seen.push(v))
@@ -674,7 +674,7 @@ test('watch on leaf value', () => {
 })
 
 test('multiple watchers on same node all fire', () => {
-  const x = ctx<number>('x')
+  const x = ref<number>('x')
   const p = run({ [x]: 0, val: calc(n => n, [x]), inc: set({ [x]: calc(n => n + 1, [x]) }) })
   const a: number[] = [], b: number[] = []
   watch(p.val, v => void a.push(v))
@@ -685,7 +685,7 @@ test('multiple watchers on same node all fire', () => {
 })
 
 test('watch on subtree receives full resolved object', () => {
-  const x = ctx<number>('x')
+  const x = ref<number>('x')
   const p = run({ [x]: 0, sub: { a: calc(n => n, [x]), b: calc(n => n * 2, [x]) }, inc: set({ [x]: calc(n => n + 1, [x]) }) })
   let last: any = null
   watch(p.sub, v => { last = v })
@@ -694,9 +694,9 @@ test('watch on subtree receives full resolved object', () => {
 })
 
 test('watch re-tracks deps after branch switch', () => {
-  const flag = ctx<boolean>('flag')
-  const a = ctx<number>('a')
-  const b = ctx<number>('b')
+  const flag = ref<boolean>('flag')
+  const a = ref<number>('a')
+  const b = ref<number>('b')
   const p = run({
     [flag]: true, [a]: 1, [b]: 10,
     val: iff(flag, calc(n => n, [a]), calc(n => n, [b])),
@@ -717,7 +717,7 @@ test('watch re-tracks deps after branch switch', () => {
 })
 
 test('cleanup runs before next callback', () => {
-  const x = ctx<number>('x')
+  const x = ref<number>('x')
   const p = run({ [x]: 0, val: x, inc: set({ [x]: calc(n => n + 1, [x]) }) })
   const log: string[] = []
   watch(p.val, v => {
@@ -730,7 +730,7 @@ test('cleanup runs before next callback', () => {
 })
 
 test('cleanup runs on unsubscribe', () => {
-  const x = ctx<number>('x')
+  const x = ref<number>('x')
   const p = run({ [x]: 0, val: x })
   let cleaned = false
   const unwatch = watch(p.val, () => () => { cleaned = true })
@@ -740,7 +740,7 @@ test('cleanup runs on unsubscribe', () => {
 })
 
 test('no cleanup when callback returns nothing', () => {
-  const x = ctx<number>('x')
+  const x = ref<number>('x')
   const p = run({ [x]: 0, val: x, inc: set({ [x]: calc(n => n + 1, [x]) }) })
   const seen: number[] = []
   watch(p.val, v => { seen.push(v) })  // returns undefined — no cleanup
@@ -749,7 +749,7 @@ test('no cleanup when callback returns nothing', () => {
 })
 
 test('watch does not fire when value unchanged', () => {
-  const x = ctx<number>('x')
+  const x = ref<number>('x')
   const p = run({
     [x]: 5,
     val: calc(() => 'constant', [x]),
@@ -765,8 +765,8 @@ test('watch does not fire when value unchanged', () => {
 
 section('arrays')
 
-test('array as ctx leaf value', () => {
-  const items = ctx<string[]>('items')
+test('array as ref leaf value', () => {
+  const items = ref<string[]>('items')
   const p = run({ [items]: ['a', 'b'], count: calc(arr => arr.length, [items]) })
   assert.equal(p.count(), 2)
 })
@@ -777,8 +777,8 @@ test('array in tree with object elements — element access', () => {
   assert.equal((p.items as any)[1].label(), 'two')
 })
 
-test('array element with iff — updates when ctx changes', () => {
-  const flag = ctx<boolean>('flag')
+test('array element with iff — updates when ref changes', () => {
+  const flag = ref<boolean>('flag')
   const p = run({
     [flag]: false,
     items: [iff(flag, 'yes', 'no')],
@@ -790,7 +790,7 @@ test('array element with iff — updates when ctx changes', () => {
 })
 
 test('mixed array: plain and reactive elements', () => {
-  const flag = ctx<boolean>('flag')
+  const flag = ref<boolean>('flag')
   const p = run({
     [flag]: false,
     items: [{ label: 'static' }, iff(flag, { label: 'active' }, { label: 'inactive' })]
@@ -800,7 +800,7 @@ test('mixed array: plain and reactive elements', () => {
 })
 
 test('watch on array fires when element changes', () => {
-  const flag = ctx<boolean>('flag')
+  const flag = ref<boolean>('flag')
   const p = run({ [flag]: false, items: [iff(flag, 1, 0)], on: set({ [flag]: true }) })
   const seen: any[] = []
   watch(p.items as any, v => void seen.push(v))
@@ -819,7 +819,7 @@ test('run with empty object', () => {
 })
 
 test('multiple independent run() instances do not interfere', () => {
-  const x = ctx<number>('x')
+  const x = ref<number>('x')
   const p1 = run({ [x]: 1, val: calc(n => n, [x]), inc: set({ [x]: calc(n => n + 1, [x]) }) })
   const p2 = run({ [x]: 100, val: calc(n => n, [x]), inc: set({ [x]: calc(n => n + 1, [x]) }) })
   p1.inc()
@@ -827,8 +827,8 @@ test('multiple independent run() instances do not interfere', () => {
   assert.equal(p2.val(), 100)
 })
 
-test('same ctx symbol reused across multiple run() calls is independent', () => {
-  const x = ctx<number>('x')
+test('same ref symbol reused across multiple run() calls is independent', () => {
+  const x = ref<number>('x')
   const p1 = run({ [x]: 1, val: calc(n => n, [x]) })
   const p2 = run({ [x]: 99, val: calc(n => n, [x]) })
   assert.equal(p1.val(), 1)
@@ -836,13 +836,13 @@ test('same ctx symbol reused across multiple run() calls is independent', () => 
 })
 
 test('string values pass through calc unchanged', () => {
-  const name = ctx<string>('name')
+  const name = ref<string>('name')
   const p = run({ [name]: 'Alice', greeting: calc(n => `Hello, ${n}!`, [name]) })
   assert.equal(p.greeting(), 'Hello, Alice!')
 })
 
 test('boolean toggling via calc', () => {
-  const flag = ctx<boolean>('flag')
+  const flag = ref<boolean>('flag')
   const p = run({ [flag]: false, val: calc(f => f, [flag]), toggle: set({ [flag]: calc(f => !f, [flag]) }) })
   assert.equal(p.val(), false)
   p.toggle()
@@ -851,9 +851,9 @@ test('boolean toggling via calc', () => {
   assert.equal(p.val(), false)
 })
 
-test('reactive iff with nested scope and inherited ctx', () => {
-  const mode = ctx<string>('mode')
-  const base = ctx<number>('base')
+test('reactive iff with nested scope and inherited ref', () => {
+  const mode = ref<string>('mode')
+  const base = ref<number>('base')
   const p = run({
     [mode]: 'a',
     [base]: 10,
@@ -870,7 +870,7 @@ test('reactive iff with nested scope and inherited ctx', () => {
 })
 
 test('action called multiple times accumulates state', () => {
-  const count = ctx<number>('count')
+  const count = ref<number>('count')
   const p = run({ [count]: 0, val: calc(n => n, [count]), inc: set({ [count]: calc(n => n + 1, [count]) }) })
   for (let i = 0; i < 10; i++) p.inc()
   assert.equal(p.val(), 10)
@@ -881,8 +881,8 @@ test('action called multiple times accumulates state', () => {
 section('combinations')
 
 test('iff as set assignment value — evaluated at call time', () => {
-  const flag = ctx<boolean>('flag')
-  const x    = ctx<number>('x')
+  const flag = ref<boolean>('flag')
+  const x    = ref<number>('x')
   const p = run({
     [flag]: true, [x]: 0,
     val:    x,
@@ -893,7 +893,7 @@ test('iff as set assignment value — evaluated at call time', () => {
 })
 
 test('iff as calc arg', () => {
-  const flag = ctx<boolean>('flag')
+  const flag = ref<boolean>('flag')
   const p = run({
     [flag]: true,
     val: calc(v => v * 2, [iff(flag, 3, 5)]),
@@ -905,8 +905,8 @@ test('iff as calc arg', () => {
 })
 
 test('arg inside iff inside set', () => {
-  const flag = ctx<boolean>('flag')
-  const x    = ctx<number>('x')
+  const flag = ref<boolean>('flag')
+  const x    = ref<number>('x')
   const p = run({
     [flag]: true, [x]: 0,
     val:    x,
@@ -917,7 +917,7 @@ test('arg inside iff inside set', () => {
 })
 
 test('watch on a single key of a distributed iff', () => {
-  const flag = ctx<boolean>('flag')
+  const flag = ref<boolean>('flag')
   const p = run({
     [flag]: false,
     s: iff(flag, { x: 1, y: 2 }, { x: 3, y: 4 }),
@@ -931,10 +931,10 @@ test('watch on a single key of a distributed iff', () => {
   assert.deepEqual(seen, [3, 1, 3])
 })
 
-test('chain of reactive ctx formulas — cascade through two resets', () => {
-  const x = ctx<number>('x')
-  const y = ctx<number>('y')
-  const z = ctx<number>('z')
+test('chain of reactive ref formulas — cascade through two resets', () => {
+  const x = ref<number>('x')
+  const y = ref<number>('y')
+  const z = ref<number>('z')
   const p = run({
     [x]: 1,
     [y]: calc(n => n * 2, [x]),
@@ -948,7 +948,7 @@ test('chain of reactive ctx formulas — cascade through two resets', () => {
 })
 
 test('arg inside calc inside set', () => {
-  const x = ctx<number>('x')
+  const x = ref<number>('x')
   const p = run({
     [x]: 0,
     val:    x,

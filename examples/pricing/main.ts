@@ -1,10 +1,10 @@
-import { ctx, iff, set, run, watch } from 'treem'
+import { ref, iff, set, run, watch } from 'treem'
 import tsSource   from './main.ts?raw'
 import htmlSource from './index.html?raw'
 import { renderCodePanel } from '../_shared/code-panel'
 
-const annual = ctx<boolean>('annual')
-const pro    = ctx<boolean>('pro')
+const annual = ref<boolean>('annual')
+const pro    = ref<boolean>('pro')
 
 const store = run({
   [annual]: false,

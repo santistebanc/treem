@@ -3,7 +3,7 @@ export const isObj = (x: unknown): x is Record<string | symbol, any> =>
 
 const NODE = Symbol('node')
 export const VALUE = Symbol('value')
-export const ctxSymbols = new Set<symbol>()
+export const refSymbols = new Set<symbol>()
 
 export const isNode = (x: unknown) => isObj(x) && (x as any)[NODE] === true
 const allKeys = (o: object): (string | symbol)[] =>
@@ -13,12 +13,12 @@ const mark = <T extends object>(n: T) =>
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type CtxRef<T = any> = symbol & { readonly __exprType: T }
+export type Ref<T = any> = symbol & { readonly __exprType: T }
 export type CalcNode<T = any> = object & { readonly __exprType: T }
 export type ArgNode<T = any> = object & { readonly __exprType: T }
 export type IffNode<T = any> = object & { readonly __exprType: T }
 export type SetNode<Args extends any[] = []> = object & { readonly __setNode: true; readonly __args: Args }
-export type Expr<T> = T | CtxRef<T> | CalcNode<T> | ArgNode<T> | IffNode<T>
+export type Expr<T> = T | Ref<T> | CalcNode<T> | ArgNode<T> | IffNode<T>
 
 type PlainObj = Record<string, unknown> & { readonly __exprType?: never } & { readonly __setNode?: never }
 
@@ -36,10 +36,10 @@ type DistributeIff<T extends object, F extends object> = {
 
 // ─── Declarative API ─────────────────────────────────────────────────────────
 
-export function ctx<T = unknown>(ref: string): CtxRef<T> {
-  const sym = Symbol(ref)
-  ctxSymbols.add(sym)
-  return mark({ type: 'ctx' as const, ref, sym, [Symbol.toPrimitive]: () => sym }) as unknown as CtxRef<T>
+export function ref<T = unknown>(name: string): Ref<T> {
+  const sym = Symbol(name)
+  refSymbols.add(sym)
+  return mark({ type: 'ref' as const, name, sym, [Symbol.toPrimitive]: () => sym }) as unknown as Ref<T>
 }
 
 export function calc<Args extends readonly any[], R>(

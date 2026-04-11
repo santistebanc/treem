@@ -1,14 +1,14 @@
-import { ctx, calc, iff, set, arg, run, watch, type Expr } from 'treem'
+import { ref, calc, iff, set, arg, run, watch, type Expr } from 'treem'
 import { renderCodePanel } from '../_shared/code-panel'
 import tsSource   from './main.ts?raw'
 import htmlSource from './index.html?raw'
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
-const isDark = ctx<boolean>('isDark')
-const coupon = ctx<number>('coupon')    // discount percentage 0–100
-const qtyA   = ctx<number>('qtyA')
-const qtyB   = ctx<number>('qtyB')
+const isDark = ref<boolean>('isDark')
+const coupon = ref<number>('coupon')    // discount percentage 0–100
+const qtyA   = ref<number>('qtyA')
+const qtyB   = ref<number>('qtyB')
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

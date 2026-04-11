@@ -1,4 +1,4 @@
-import { isObj, isNode, ctxSymbols, VALUE, type SetNode } from './nodes.js'
+import { isObj, isNode, refSymbols, VALUE, type SetNode } from './nodes.js'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -74,7 +74,7 @@ export function run<T extends object>(app: T): ProgramOf<T> {
     scopes.add(scope)
     for (const sym of Object.getOwnPropertySymbols(tree)) {
       if (sym === VALUE) { scope.valueNode = (tree as any)[sym]; continue }
-      if (!ctxSymbols.has(sym)) continue
+      if (!refSymbols.has(sym)) continue
       const def: Def = { formula: (tree as any)[sym], value: undefined, scope, deps: new Set() }
       scope.defs.set(sym, def)
       allDefs.push(def)
@@ -93,7 +93,7 @@ export function run<T extends object>(app: T): ProgramOf<T> {
   function eval_(node: any, scope: Scope): any {
     if (!isNode(node)) return node
     switch (node.type) {
-      case 'ctx': {
+      case 'ref': {
         const def = findDef(node.sym, scope)
         if (def && tracking) tracking.deps.add(def)
         if (def && watchTracking) watchTracking.deps.add(def)
@@ -108,7 +108,7 @@ export function run<T extends object>(app: T): ProgramOf<T> {
         const updates: [Def, any][] = []
         try {
           for (const sym of Object.getOwnPropertySymbols(node.assignments)) {
-            if (!ctxSymbols.has(sym)) continue
+            if (!refSymbols.has(sym)) continue
             const def = findDef(sym, scope)
             if (!def) continue
             const next = eval_((node.assignments as any)[sym], scope)

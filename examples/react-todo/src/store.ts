@@ -1,12 +1,12 @@
-import { ctx, calc, set, arg, run } from 'treem'
+import { ref, calc, set, arg, run } from 'treem'
 
 export type Todo   = { id: number; text: string; done: boolean }
 export type Filter = 'all' | 'active' | 'done'
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
-const todos  = ctx<Todo[]>('todos')
-const filter = ctx<Filter>('filter')
+const todos  = ref<Todo[]>('todos')
+const filter = ref<Filter>('filter')
 
 // ─── Derived ─────────────────────────────────────────────────────────────────
 

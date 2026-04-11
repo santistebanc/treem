@@ -1,10 +1,10 @@
-import { ctx, calc, set, run, watch } from 'treem'
+import { ref, calc, set, run, watch } from 'treem'
 import tsSource from './main.ts?raw'
 import htmlSource from './index.html?raw'
 import { renderCodePanel } from '../_shared/code-panel'
 
 const phases = [{ color: 'green', time: 4000 }, { color: 'yellow', time: 1000 }, { color: 'red', time: 3000 }]
-const idx = ctx<number>('idx')
+const idx = ref<number>('idx')
 
 const store = run({
   [idx]: 0,

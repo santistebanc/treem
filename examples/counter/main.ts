@@ -1,12 +1,12 @@
-import { ctx, calc, set, arg, run, watch } from 'treem'
+import { ref, calc, set, arg, run, watch } from 'treem'
 import { renderCodePanel } from '../_shared/code-panel'
 import tsSource   from './main.ts?raw'
 import htmlSource from './index.html?raw'
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
-const count = ctx<number>('count')
-const step  = ctx<number>('step')
+const count = ref<number>('count')
+const step  = ref<number>('step')
 
 // ─── Derived ─────────────────────────────────────────────────────────────────
 
