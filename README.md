@@ -275,6 +275,61 @@ update({
 
 Events emit **after** all state updates in the same `update` call have been applied and propagated.
 
+### `record` — reactive key-value collection
+
+Declares a reactive map keyed by arbitrary strings. Unlike a plain `ref<Record<K,V>>`, mutations are **cell-granular** — updating one entry only notifies watchers of that specific entry, not the whole collection.
+
+```ts
+import { record, calc, update, arg, run, watch } from 'treem'
+
+type Player = { name: string; score: number }
+
+const players = record<string, Player>('players')
+
+const store = run({
+  [players]: [['alice', { name: 'Alice', score: 0 }]],  // init from array-of-pairs
+  players,
+
+  // Whole-map derived values — recompute when any entry changes
+  count:    calc((ps: Player[]) => ps.length, [players]),
+  topScore: calc((ps: Player[]) => Math.max(0, ...ps.map(p => p.score)), [players]),
+
+  // Actions
+  addPlayer:    update<[string, Player]>({ [players(arg(0))]: arg(1) }),
+  removePlayer: update<[string]>({         [players(arg(0))]: undefined }),
+
+  // Merge — read the current entry as a dep in the calc
+  addScore: update<[string, number]>({
+    [players(arg(0))]: calc(
+      (p: Player | undefined, n: number) => p ? { ...p, score: p.score + n } : p,
+      [players(arg(0)), arg(1)]
+    ),
+  }),
+})
+```
+
+`store.players()` returns an array of all current values. `store.players(key)` returns a `Watchable` for that specific entry:
+
+```ts
+// Fires only when alice's entry changes — not when bob joins or leaves
+watch(store.players('alice'), player => console.log('alice:', player))
+
+store.addPlayer('bob', { name: 'Bob', score: 5 })
+// → alice watcher silent
+
+store.addScore('alice', 10)
+// → alice watcher fires: { name: 'Alice', score: 10 }
+// → bob watcher silent
+```
+
+`watch(store.players, cb)` subscribes to the whole collection and fires whenever any entry changes.
+
+Setting an entry to `undefined` deletes it:
+
+```ts
+removePlayer: update<[string]>({ [players(arg(0))]: undefined })
+```
+
 ### `run` — instantiate
 
 Takes the app tree and returns a callable interface. Calling any node resolves its current value. The return type mirrors the shape of the app tree.
