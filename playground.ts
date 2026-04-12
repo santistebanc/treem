@@ -1,29 +1,18 @@
-import { ref, calc, set, run, watch } from './src/index'
+import { ref, calc, run, update, arg } from './src/index'
 
-const phases = [{ color: 'green', time: 4000 }, { color: 'yellow', time: 1000 }, { color: 'red', time: 3000 }]
-const idx = ref<number>('idx')
+const fruits = ref<string[]>('fruits')
+const item = ref<string>('item')
+const index = ref<number>('index')
+
 
 const store = run({
-  [idx]: 0,
-  phase: calc((i) => phases[i], [idx]),
-  next: set({ [idx]: calc((i) => (i + 1) % phases.length, [idx]) }),
+  [fruits]: [],
+  view: map({ list: fruits, item, index }, { name: item, initial: calc(it => it.charAt(0), [item]), eat: update({ [fruits]: calc((f, i) => f.toSpliced(i, 1), [fruits, index]) }) }),
+  addFruit: update<[string]>({ [fruits]: calc((f, n) => [...f, n], [fruits, arg(0)]) }),
 })
 
-console.log('Traffic Light')
-console.log('==============\n')
+const app = run(store)
 
-watch(store.phase, ({ color, time }) => {
-  console.log(color)
-  const timeoutId = setTimeout(() => {
-    store.next()
-  }, time)
-
-  return () => {
-    clearTimeout(timeoutId)
-  }
-})
-
-console.log('Press Enter for next light')
-const readline = require('readline')
-const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
-rl.on('line', store.next)
+app.view[0].initial() //returns undefined
+app.addFruit('apple')
+app.view[0].initial() //returns 'a'
