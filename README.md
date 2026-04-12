@@ -8,13 +8,14 @@ Live demos hosted on GitHub Pages:
 
 | Example | Tags | Description |
 |---|---|---|
-| [Traffic Light](https://santistebanc.github.io/treem/traffic-light/) | vanilla | Timed state machine with `iff` and reactive transitions |
 | [Counter](https://santistebanc.github.io/treem/counter/) | vanilla | Basic `ref`, `calc`, `update`, step control |
+| [Traffic Light](https://santistebanc.github.io/treem/traffic-light/) | vanilla | Timed state machine with `iff` and reactive transitions |
 | [Pricing](https://santistebanc.github.io/treem/pricing/) | vanilla | Reactive plan selector with distributed `iff` |
 | [Wizard](https://santistebanc.github.io/treem/wizard/) | vanilla | Multi-step form with validation, arrays, and nested scopes |
 | [Brew Shop](https://santistebanc.github.io/treem/shop/) | vanilla | Cart with coupons, theming, and `event` for toast feedback |
 | [User Search](https://santistebanc.github.io/treem/search/) | vanilla | Async fetch with debounce, abort, and `event` for analytics |
 | [Todo](https://santistebanc.github.io/treem/react-todo/) | React | TodoMVC-style app using treem as the store |
+| [Devtool](https://santistebanc.github.io/treem/devtool/) | devtools | Interactive tree inspector for treem program state |
 
 ---
 
