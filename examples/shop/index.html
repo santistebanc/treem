@@ -85,6 +85,9 @@
     .coupon-row input:focus { border-color: var(--accent) }
     .coupon-hint { font-size: .7rem; color: var(--muted) }
     .coupon-hint span { font-weight: 600 }
+    .coupon-msg { font-size: .72rem; margin-top: .3rem; font-weight: 500 }
+    .coupon-ok  { color: #4caf50 }
+    .coupon-err { color: #e53935 }
 
     button {
       border: none; border-radius: 7px; font-family: inherit; font-size: .82rem;
@@ -150,6 +153,7 @@
           <button id="coupon-apply">Apply</button>
         </div>
         <div class="coupon-hint">Try: <span>SAVE10</span> · <span>SAVE20</span> · <span>HALF</span></div>
+        <div id="coupon-msg" class="coupon-msg" hidden></div>
       </div>
     </main>
   </div>

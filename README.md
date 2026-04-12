@@ -212,37 +212,49 @@ store.updateRange(0, 100)
 
 Declares a typed event channel. Use it as a key in an `update` assignments object to emit, and pass it directly to `watch` to subscribe. Unlike state refs, events carry no persistent value — they fire and are gone.
 
-```ts
-import { ref, event, update, arg, run, watch } from 'treem'
+Use events to decouple one-time side effects (toasts, analytics, navigation) from persistent state. A `watch` on state fires once immediately and whenever the value changes; a `watch` on an event fires only when the event is explicitly emitted.
 
-const itemAdded = event<[string, number]>('itemAdded')  // name, qty
+```ts
+import { ref, calc, event, update, arg, run, watch } from 'treem'
+
+const itemCount   = ref<number>('itemCount')
+const itemAdded   = event<[name: string, qty: number]>('itemAdded')
+const cartCleared = event<[]>('cartCleared')
 
 const store = run({
+  [itemCount]: 0,
+
+  // State mutation and event emission happen in the same update call.
+  // All state updates apply first, then events fire.
   add: update<[string, number]>({
+    [itemCount]: calc((n, qty) => n + qty, [itemCount, arg<number>(1)]),
     [itemAdded]: [arg<string>(0), arg<number>(1)],
+  }),
+
+  clear: update({
+    [itemCount]: 0,
+    [cartCleared]: [],
   }),
 })
 
-const unsub = watch(itemAdded, (name, qty) => {
-  console.log(`added ${qty}× ${name}`)
-})
+// Side effects subscribe to events, not state — they only run when something happens.
+watch(itemAdded,   (name, qty) => console.log(`Added ${qty}× ${name}`))
+watch(cartCleared, ()          => console.log('Cart cleared'))
 
-store.add('apple', 3)   // → "added 3× apple"
-store.add('banana', 1)  // → "added 1× banana"
+store.add('coffee', 2)   // → "Added 2× coffee"
+store.add('espresso', 1) // → "Added 1× espresso"
+store.clear()            // → "Cart cleared"
 
-unsub()                 // stop listening
-store.add('cherry', 5)  // → silence
+store.itemCount()        // 0  — state is still queryable normally
 ```
 
-The event emission value can be any expression, including `arg`, `calc`, and `iff`:
+Event emission values can be any expressions — `arg`, `calc`, `iff` — evaluated at call time from the current state and arguments:
 
 ```ts
-const total = event<[number]>('total')
-const qty   = ref<number>('qty')
-const price = ref<number>('price')
+const checkout = event<[{ total: number; itemCount: number }]>('checkout')
 
 update({
-  [total]: [calc((q, p) => q * p, [qty, price])],
+  [checkout]: [calc((total, n) => ({ total, itemCount: n }), [cartTotal, itemCount])],
 })
 ```
 
@@ -478,10 +490,10 @@ This is mostly an implementation detail you won't need to reach for — calling 
 
 ## Comprehensive example
 
-A multi-step signup wizard that puts every feature to work: nested scopes, reactive formulas, distributed conditionals, parameterized actions, arrays, and watchers.
+A multi-step signup wizard that puts every feature to work: nested scopes, reactive formulas, distributed conditionals, parameterized actions, arrays, watchers, and events.
 
 ```ts
-import { ref, calc, iff, update, run, watch, type Expr } from 'treem'
+import { ref, calc, iff, event, update, arg, run, watch, type Expr } from 'treem'
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
@@ -490,6 +502,11 @@ const name   = ref<string>('name')
 const email  = ref<string>('email')
 const plan   = ref<'free' | 'pro'>('plan')
 const agreed = ref<boolean>('agreed')
+
+// ─── Events ───────────────────────────────────────────────────────────────────
+
+type SignupPayload = { name: string; email: string; plan: 'free' | 'pro' }
+const submitted = event<[SignupPayload]>('submitted')
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -544,6 +561,10 @@ const wizard = run({
 
   updatePlan: update<['free' | 'pro']>({ [plan]:   arg<'free' | 'pro'>(0) }),
   agree:   update({ [agreed]: true }),
+  // submit emits the event with the collected form data — state is not mutated
+  submit:  update({
+    [submitted]: [calc((n, e, p) => ({ name: n, email: e, plan: p }), [name, email, plan])],
+  }),
 
   // ── Step 3: review ───────────────────────────────────────────────────────────
   //    reads ancestor refs — scoping in action
@@ -580,6 +601,12 @@ const stopLog = watch(wizard.progress, p => {
   console.log(`[${p.pct}%] ${p.label}`)
 })
 
+// submitted is an event, not state — fires once when the user hits Submit
+watch(submitted, ({ name, plan }) => {
+  console.log(`Submitting signup for ${name} on ${plan} plan…`)
+  // sendToAPI({ name, email, plan })
+})
+
 // ─── Use the wizard ──────────────────────────────────────────────────────────
 
 wizard.details.updateName('Alice')
@@ -611,6 +638,10 @@ wizard.summary()
 // }
 
 wizard.tabs[2].done()          // true — confirm tab marked done
+
+wizard.submit()
+// → "Submitting signup for Alice on pro plan…"
+// The submitted event fires once — no state changes, no extra re-renders.
 
 stopLog()
 ```

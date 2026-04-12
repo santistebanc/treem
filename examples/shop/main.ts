@@ -1,4 +1,4 @@
-import { ref, calc, iff, update, arg, run, watch, type Expr } from 'treem'
+import { ref, calc, iff, event, update, arg, run, watch, type Expr } from 'treem'
 import { renderCodePanel } from '../_shared/code-panel'
 import tsSource   from './main.ts?raw'
 import htmlSource from './index.html?raw'
@@ -19,6 +19,12 @@ const fmt = (n: number) => `$${n.toFixed(2)}`
 const PRICES = [4.99, 12.99] as const
 const COUPONS: Record<string, number> = { SAVE10: 10, SAVE20: 20, HALF: 50 }
 
+// ─── Events ───────────────────────────────────────────────────────────────────
+
+// Fires with the applied discount (> 0) or 0 when the code is invalid.
+// Side effects (toast, analytics) subscribe here instead of watching coupon state.
+const couponApplied = event<[pct: number, valid: boolean]>('couponApplied')
+
 // ─── Derived ─────────────────────────────────────────────────────────────────
 
 const subtotalA = calc(q => q * PRICES[0], [qtyA])
@@ -36,7 +42,13 @@ const store = run({
   [qtyB]:   0,
 
   toggleTheme: update({ [isDark]: calc(d => !d, [isDark]) }),
-  applyCoupon: update<[string]>({ [coupon]: calc((code: string) => COUPONS[code] ?? 0, [arg<string>(0)]) }),
+  applyCoupon: update<[string]>({
+    [coupon]: calc((code: string) => COUPONS[code] ?? 0, [arg<string>(0)]),
+    [couponApplied]: [
+      calc((code: string) => COUPONS[code] ?? 0, [arg<string>(0)]),
+      calc((code: string) => code in COUPONS,     [arg<string>(0)]),
+    ],
+  }),
 
   products: [
     { qty: qtyA, subtotal: subtotalA, inc: update({ [qtyA]: inc(qtyA) }), dec: update({ [qtyA]: dec(qtyA) }) },
@@ -99,6 +111,16 @@ watch(store.cart.total,     (v: number) => { el('cart-total').textContent = fmt(
 watch(store.cart.savings,   (v: number) => {
   el('savings-row').style.display = v > 0 ? 'flex' : 'none'
   el('cart-savings').textContent  = `−${fmt(v)}`
+})
+
+// couponApplied fires once per apply attempt — show toast feedback then clear it.
+// A watch on coupon state couldn't distinguish "just applied" from "already active".
+watch(couponApplied, (pct, valid) => {
+  const msg = el('coupon-msg')
+  msg.textContent = valid ? `✓ ${pct}% off applied!` : '✗ Invalid code'
+  msg.className   = valid ? 'coupon-ok' : 'coupon-err'
+  msg.hidden      = false
+  setTimeout(() => { msg.hidden = true }, 2500)
 })
 
 el('toggle-theme').addEventListener('click', () => store.toggleTheme())
