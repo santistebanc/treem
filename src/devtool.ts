@@ -1,4 +1,4 @@
-import { isNode, isObj } from './nodes.js'
+import { isNode, isObj, TYPE, NAME, SYM, ARGS, INDEX, COND, ON_TRUE, ON_FALSE, ASSIGNMENTS } from './nodes.js'
 import { watch } from './runtime.js'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -27,29 +27,29 @@ interface LogEntry { t: number; path: string; prev: any; next: any }
 function describeExpr(e: any, depth = 0): string {
   if (e === undefined || e === null) return '—'
   if (!isNode(e)) return JSON.stringify(e)
-  switch (e.type) {
-    case 'ref':  return e.name
-    case 'calc': return depth > 0 ? 'calc(…)' : `calc(${e.args.map((a: any) => describeExpr(a, 1)).join(', ')})`
-    case 'iff':  return `iff(${describeExpr(e.cond, 1)})`
-    case 'arg':  return `arg[${e.index}]`
-    default:     return e.type
+  switch (e[TYPE]) {
+    case 'ref':  return e[NAME]
+    case 'calc': return depth > 0 ? 'calc(…)' : `calc(${e[ARGS].map((a: any) => describeExpr(a, 1)).join(', ')})`
+    case 'iff':  return `iff(${describeExpr(e[COND], 1)})`
+    case 'arg':  return `arg[${e[INDEX]}]`
+    default:     return e[TYPE]
   }
 }
 
 function scanMaxArg(node: any): number {
   if (!isNode(node)) return -1
-  switch (node.type) {
-    case 'arg':  return node.index
-    case 'calc': return (node.args as any[]).reduce((m: number, a: any) => Math.max(m, scanMaxArg(a)), -1)
-    case 'iff':  return Math.max(scanMaxArg(node.cond), scanMaxArg(node.onTrue), scanMaxArg(node.onFalse))
+  switch (node[TYPE]) {
+    case 'arg':  return node[INDEX]
+    case 'calc': return (node[ARGS] as any[]).reduce((m: number, a: any) => Math.max(m, scanMaxArg(a)), -1)
+    case 'iff':  return Math.max(scanMaxArg(node[COND]), scanMaxArg(node[ON_TRUE]), scanMaxArg(node[ON_FALSE]))
     default:     return -1
   }
 }
 
 function getSetArgCount(setNode: any): number {
   let max = -1
-  for (const sym of Object.getOwnPropertySymbols(setNode.assignments)) {
-    max = Math.max(max, scanMaxArg((setNode.assignments as any)[sym]))
+  for (const sym of Object.getOwnPropertySymbols(setNode[ASSIGNMENTS])) {
+    max = Math.max(max, scanMaxArg((setNode[ASSIGNMENTS] as any)[sym]))
   }
   return max + 1
 }
@@ -60,15 +60,15 @@ function buildDevNode(key: string, parentPath: string, declVal: any, progNode: a
   const path = parentPath ? `${parentPath}.${key}` : key
 
   if (isNode(declVal)) {
-    const kind = declVal.type as Kind
+    const kind = declVal[TYPE] as Kind
     const base: DevNode = { key, path, kind, decl: declVal, prog: progNode, children: [] }
     switch (kind) {
-      case 'ref':  base.refName = declVal.name; break
-      case 'calc': base.calcDeps = (declVal.args as any[]).map((a: any) => describeExpr(a)); break
+      case 'ref':  base.refName = declVal[NAME]; break
+      case 'calc': base.calcDeps = (declVal[ARGS] as any[]).map((a: any) => describeExpr(a)); break
       case 'iff':  base.iffInfo = {
-          condDesc:  describeExpr(declVal.cond),
-          trueDesc:  describeExpr(declVal.onTrue),
-          falseDesc: describeExpr(declVal.onFalse),
+          condDesc:  describeExpr(declVal[COND]),
+          trueDesc:  describeExpr(declVal[ON_TRUE]),
+          falseDesc: describeExpr(declVal[ON_FALSE]),
         }; break
       case 'update': base.setArgCount = getSetArgCount(declVal); break
     }

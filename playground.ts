@@ -1,4 +1,4 @@
-import { ref, calc, run, update, arg, watch } from './src/index'
+import { ref, calc, run, update, arg, watch, record } from './src/index'
 
 // ─── mapRef sketch ────────────────────────────────────────────────────────────
 //
@@ -35,8 +35,6 @@ import { ref, calc, run, update, arg, watch } from './src/index'
 //   store.players.size()      → Watchable<number> (derived, optional sugar)
 
 // ─── Example: multiplayer quiz ───────────────────────────────────────────────
-
-type Player = { name: string; score: number; answered: boolean; answer: string }
 
 // Hypothetical imports (not yet implemented):
 // import { mapRef, mapSet, mapMerge, mapDelete } from './src/index'
@@ -132,17 +130,18 @@ type Player = { name: string; score: number; answered: boolean; answer: string }
 //     fn.get(key)    → returns Watchable backed by per-key Def (create lazily)
 //     fn[SUBSCRIBE]  → subscribes to wholeDef
 
+type Player = { name: string; score: number; answered: boolean; answer: string }
 
-const players = record<string, Player>('players')
+const players = ref<Record<string, Player>>('players')
 
 const store = {
-  [players]: [],
+  [players]: {},
   addPlayer: update<string, Player>({ [players(arg(0))]: arg(1) }),
   removePlayer: update<string>({ [players(arg(0))]: undefined }),
   addScore: update<string, number>({
     [players(arg(0))]: calc(
-      (p, n) => ({ ...p, score: p.score + n }),
-      [players(arg(0)), arg(1)]   // players(arg(0)) as a calc dep reads the current entry
+      (p, n) => (p ? { ...p, score: p.score + n } : p),
+      [players(arg<string>(0)), arg<number>(1)]   // players(arg(0)) as a calc dep reads the current entry
     ),
   })
 

@@ -1,4 +1,4 @@
-import { isObj, isNode, refSymbols, eventSymbols, mapRefSymbols, mapEntryRegistry, emitEvent, subscribeEvent, VALUE, type UpdateNode, type EventChannel, type RecordNode } from './nodes.js'
+import { isObj, isNode, refSymbols, eventSymbols, mapRefSymbols, mapEntryRegistry, emitEvent, subscribeEvent, VALUE, TYPE, SYM, FN, ARGS, INDEX, COND, ON_TRUE, ON_FALSE, ASSIGNMENTS, MAP_SYM, KEY_EXPR, PATH_ROOT, PATH_CHAIN, pathNodeRegistry, pathNodeSymbols, type UpdateNode, type EventChannel, type RecordNode } from './nodes.js'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -64,7 +64,7 @@ function removeSubs(subscribers: Map<Def, Set<Subscriber>>, oldDeps: Set<Def>, s
 export function watch<Args extends any[]>(channel: EventChannel<Args>, cb: (...args: Args) => void): () => void
 export function watch<T>(target: Watchable<T>, cb: (value: T, prev?: T) => CleanupResult): () => void
 export function watch(target: any, cb: any): () => void {
-  if (isNode(target) && (target as any).type === 'event') return subscribeEvent(target, cb)
+  if (isNode(target) && (target as any)[TYPE] === 'event') return subscribeEvent(target, cb)
   return target[SUBSCRIBE](cb)
 }
 
@@ -103,6 +103,19 @@ export function run<T extends object>(app: T): ProgramOf<T> {
     return scope
   }
 
+  function setAtPath(obj: any, keys: any[], value: any): any {
+    if (keys.length === 0) return value
+    const [key, ...rest] = keys
+    if (rest.length === 0) {
+      if (value === undefined) {
+        if (obj == null || typeof obj !== 'object') return obj
+        const copy = { ...obj }; delete copy[key]; return copy
+      }
+      return { ...(obj ?? {}), [key]: value }
+    }
+    return { ...(obj ?? {}), [key]: setAtPath(obj?.[key], rest, value) }
+  }
+
   function findDef(sym: symbol, scope: Scope): Def | undefined {
     for (let s: Scope | null = scope; s; s = s.parent)
       if (s.defs.has(sym)) return s.defs.get(sym)
@@ -115,23 +128,23 @@ export function run<T extends object>(app: T): ProgramOf<T> {
 
   function eval_(node: any, scope: Scope): any {
     if (!isNode(node)) return node
-    switch (node.type) {
+    switch (node[TYPE]) {
       case 'ref': {
-        const def = findDef(node.sym, scope)
+        const def = findDef(node[SYM], scope)
         if (def && tracking) tracking.deps.add(def)
         if (def && watchTracking) watchTracking.deps.add(def)
         return def?.value
       }
-      case 'arg': return currentArgs[node.index]
+      case 'arg': return currentArgs[node[INDEX]]
       case 'record': {
-        const ms = findMapStore(node.sym, scope)
+        const ms = findMapStore(node[SYM], scope)
         if (!ms) return []
         if (tracking) tracking.deps.add(ms.wholeDef)
         if (watchTracking) watchTracking.deps.add(ms.wholeDef)
         return ms.wholeDef.value
       }
       case 'mapEntry': {
-        const entry = mapEntryRegistry.get(node.sym)
+        const entry = mapEntryRegistry.get(node[SYM])
         if (!entry) return undefined
         const ms = findMapStore(entry.mapSym, scope)
         if (!ms) return undefined
@@ -145,28 +158,39 @@ export function run<T extends object>(app: T): ProgramOf<T> {
         if (watchTracking) watchTracking.deps.add(kd)
         return kd.value
       }
-      case 'calc': return node.fn(...node.args.map((a: any) => eval_(a, scope)))
-      case 'iff': return eval_(node.cond, scope) ? eval_(node.onTrue, scope) : eval_(node.onFalse, scope)
+      case 'path': {
+        const def = findDef(node[PATH_ROOT], scope)
+        if (def && tracking) tracking.deps.add(def)
+        if (def && watchTracking) watchTracking.deps.add(def)
+        let val = def?.value
+        for (const step of node[PATH_CHAIN] as any[]) {
+          if (val == null) return undefined
+          val = val[isNode(step) ? eval_(step, scope) : step]
+        }
+        return val
+      }
+      case 'calc': return node[FN](...node[ARGS].map((a: any) => eval_(a, scope)))
+      case 'iff': return eval_(node[COND], scope) ? eval_(node[ON_TRUE], scope) : eval_(node[ON_FALSE], scope)
       case 'update': return (...args: any[]) => {
         const prevArgs = currentArgs
         currentArgs = args
         const stateUpdates: [Def, any][] = []
         const pendingEmissions: [symbol, any[]][] = []
         try {
-          for (const sym of Object.getOwnPropertySymbols(node.assignments)) {
+          for (const sym of Object.getOwnPropertySymbols(node[ASSIGNMENTS])) {
             if (refSymbols.has(sym)) {
               const def = findDef(sym, scope)
               if (!def) continue
-              const next = eval_((node.assignments as any)[sym], scope)
+              const next = eval_((node[ASSIGNMENTS] as any)[sym], scope)
               if (next !== def.value) stateUpdates.push([def, next])
             } else if (eventSymbols.has(sym)) {
-              const argExprs: any[] = (node.assignments as any)[sym]
+              const argExprs: any[] = (node[ASSIGNMENTS] as any)[sym]
               const evaluated = argExprs.map((a: any) => eval_(a, scope))
               pendingEmissions.push([sym, evaluated])
             } else if (mapRefSymbols.has(sym)) {
               const ms = findMapStore(sym, scope)
               if (!ms) continue
-              const next = eval_((node.assignments as any)[sym], scope)
+              const next = eval_((node[ASSIGNMENTS] as any)[sym], scope)
               const entries: [any, any][] = Array.isArray(next) ? next : Object.entries(next ?? {})
               const newMap = new Map(entries)
               // Diff: update/delete per-key Defs for changed keys only
@@ -185,12 +209,20 @@ export function run<T extends object>(app: T): ProgramOf<T> {
               ms.rawMap.clear()
               for (const [k, v] of newMap) ms.rawMap.set(k, v)
               stateUpdates.push([ms.wholeDef, [...ms.rawMap.values()]])
+            } else if (pathNodeSymbols.has(sym)) {
+              const reg = pathNodeRegistry.get(sym)!
+              const def = findDef(reg.pathRoot, scope)
+              if (!def) continue
+              const keys = reg.pathChain.map((step: any) => isNode(step) ? eval_(step, scope) : step)
+              const next = eval_((node[ASSIGNMENTS] as any)[sym], scope)
+              const newValue = setAtPath(def.value, keys, next)
+              if (newValue !== def.value) stateUpdates.push([def, newValue])
             } else if (mapEntryRegistry.has(sym)) {
               const entry = mapEntryRegistry.get(sym)!
               const ms = findMapStore(entry.mapSym, scope)
               if (!ms) continue
               const key = eval_(entry.keyExpr, scope)
-              const next = eval_((node.assignments as any)[sym], scope)
+              const next = eval_((node[ASSIGNMENTS] as any)[sym], scope)
               if (next === undefined) ms.rawMap.delete(key)
               else ms.rawMap.set(key, next)
               let kd = ms.keyDefs.get(key)
@@ -333,8 +365,8 @@ export function run<T extends object>(app: T): ProgramOf<T> {
       arr[SUBSCRIBE] = makeSubscribe(() => resolveNode(node, scope), subscribers)
       return arr
     }
-    if (isNode(node) && node.type === 'record') {
-      const ms = findMapStore(node.sym, scope)!
+    if (isNode(node) && node[TYPE] === 'record') {
+      const ms = findMapStore(node[SYM], scope)!
       const fn: any = (key?: any) => {
         if (key === undefined) return ms.wholeDef.value
         // Per-key watchable — created fresh each call, backed by the same Def
