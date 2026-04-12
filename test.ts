@@ -960,6 +960,130 @@ test('arg inside calc inside update', () => {
   assert.equal(p.val(), -1)
 })
 
+// ─── event ───────────────────────────────────────────────────────────────────
+
+import { event } from './src/index'
+
+section('event')
+
+test('watch on event channel fires when emitted', () => {
+  const clicked = event<[]>('clicked')
+  const p = run({ click: update({ [clicked]: [] }) })
+  let count = 0
+  watch(clicked, () => { count++ })
+  p.click()
+  assert.equal(count, 1)
+  p.click()
+  assert.equal(count, 2)
+})
+
+test('watch on event passes args to callback', () => {
+  const selected = event<[string, number]>('selected')
+  const p = run({ select: update<[string, number]>({ [selected]: [arg<string>(0), arg<number>(1)] }) })
+  const seen: [string, number][] = []
+  watch(selected, (label, idx) => void seen.push([label, idx]))
+  p.select('foo', 3)
+  p.select('bar', 7)
+  assert.deepEqual(seen, [['foo', 3], ['bar', 7]])
+})
+
+test('unsubscribe from event stops callbacks', () => {
+  const ev = event<[]>('ev')
+  const p = run({ fire: update({ [ev]: [] }) })
+  let count = 0
+  const unsub = watch(ev, () => { count++ })
+  p.fire()
+  unsub()
+  p.fire()
+  p.fire()
+  assert.equal(count, 1)
+})
+
+test('multiple event subscribers all fire', () => {
+  const ev = event<[number]>('ev')
+  const p = run({ fire: update<[number]>({ [ev]: [arg<number>(0)] }) })
+  const a: number[] = [], b: number[] = []
+  watch(ev, n => void a.push(n))
+  watch(ev, n => void b.push(n))
+  p.fire(42)
+  assert.deepEqual(a, [42])
+  assert.deepEqual(b, [42])
+})
+
+test('event emission happens after state updates', () => {
+  const x = ref<number>('x')
+  const changed = event<[number]>('changed')
+  const p = run({
+    [x]: 0,
+    val: x,
+    set: update<[number]>({ [x]: arg<number>(0), [changed]: [arg<number>(0)] }),
+  })
+  const emitted: number[] = []
+  watch(changed, n => void emitted.push(n))
+  p.set(5)
+  assert.equal(p.val(), 5)
+  assert.deepEqual(emitted, [5])
+})
+
+test('event args can be calc expressions', () => {
+  const x = ref<number>('x')
+  const doubled = event<[number]>('doubled')
+  const p = run({
+    [x]: 3,
+    inc: update({ [x]: calc(n => n + 1, [x]), [doubled]: [calc(n => (n + 1) * 2, [x])] }),
+  })
+  const seen: number[] = []
+  watch(doubled, n => void seen.push(n))
+  p.inc()
+  assert.deepEqual(seen, [8])
+})
+
+test('event not fired unless action is called', () => {
+  const ev = event<[]>('ev')
+  run({ fire: update({ [ev]: [] }) })
+  let count = 0
+  watch(ev, () => { count++ })
+  assert.equal(count, 0)
+})
+
+// ─── dispose ─────────────────────────────────────────────────────────────────
+
+section('dispose')
+
+test('dispose stops all watchers', () => {
+  const x = ref<number>('x')
+  const p = run({ [x]: 0, val: x, inc: update({ [x]: calc(n => n + 1, [x]) }) })
+  const seen: number[] = []
+  watch(p.val, v => void seen.push(v))
+  p.inc()
+  assert.equal(seen.length, 2)
+  p.dispose()
+  p.inc()
+  p.inc()
+  assert.equal(seen.length, 2)
+})
+
+test('dispose runs cleanup on active watchers', () => {
+  const x = ref<number>('x')
+  const p = run({ [x]: 0, val: x })
+  let cleaned = false
+  watch(p.val, () => () => { cleaned = true })
+  assert.equal(cleaned, false)
+  p.dispose()
+  assert.equal(cleaned, true)
+})
+
+test('dispose does not affect other run() instances', () => {
+  const x = ref<number>('x')
+  const p1 = run({ [x]: 0, val: x, inc: update({ [x]: calc(n => n + 1, [x]) }) })
+  const p2 = run({ [x]: 0, val: x, inc: update({ [x]: calc(n => n + 1, [x]) }) })
+  const seen: number[] = []
+  watch(p2.val, v => void seen.push(v))
+  p1.dispose()
+  p2.inc()
+  assert.equal(seen.length, 2)
+})
+
 // ─── summary ─────────────────────────────────────────────────────────────────
 
 console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed`)

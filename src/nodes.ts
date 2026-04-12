@@ -19,7 +19,7 @@ export type Ref<T = any> = symbol & { readonly __exprType: T }
 export type CalcNode<T = any> = object & { readonly __exprType: T }
 export type ArgNode<T = any> = object & { readonly __exprType: T }
 export type IffNode<T = any> = object & { readonly __exprType: T }
-export type EventChannel<Args extends any[] = any[]> = object & { readonly __eventArgs: Args }
+export type EventChannel<Args extends any[] = any[]> = symbol & { readonly __eventArgs: Args }
 export type UpdateNode<Args extends any[] = []> = object & { readonly __updateNode: true; readonly __args: Args }
 export type Expr<T> = T | Ref<T> | CalcNode<T> | ArgNode<T> | IffNode<T>
 

@@ -271,7 +271,10 @@ export function run<T extends object>(app: T): ProgramOf<T> {
   for (const def of allDefs) reeval(def, subscribers)
   const program: any = callable(root, root, subscribers)
   program.dispose = () => {
-    for (const w of watchers) removeSubs(subscribers, w.deps, w)
+    for (const w of watchers) {
+      w.cleanup?.(w.last, undefined)
+      removeSubs(subscribers, w.deps, w)
+    }
     watchers.clear()
   }
   return program as ProgramOf<T>

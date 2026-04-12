@@ -208,6 +208,46 @@ store.addToPrice(8)       // price → 50
 store.updateRange(0, 100)
 ```
 
+### `event` — event channel
+
+Declares a typed event channel. Use it as a key in an `update` assignments object to emit, and pass it directly to `watch` to subscribe. Unlike state refs, events carry no persistent value — they fire and are gone.
+
+```ts
+import { ref, event, update, arg, run, watch } from 'treem'
+
+const itemAdded = event<[string, number]>('itemAdded')  // name, qty
+
+const store = run({
+  add: update<[string, number]>({
+    [itemAdded]: [arg<string>(0), arg<number>(1)],
+  }),
+})
+
+const unsub = watch(itemAdded, (name, qty) => {
+  console.log(`added ${qty}× ${name}`)
+})
+
+store.add('apple', 3)   // → "added 3× apple"
+store.add('banana', 1)  // → "added 1× banana"
+
+unsub()                 // stop listening
+store.add('cherry', 5)  // → silence
+```
+
+The event emission value can be any expression, including `arg`, `calc`, and `iff`:
+
+```ts
+const total = event<[number]>('total')
+const qty   = ref<number>('qty')
+const price = ref<number>('price')
+
+update({
+  [total]: [calc((q, p) => q * p, [qty, price])],
+})
+```
+
+Events emit **after** all state updates in the same `update` call have been applied and propagated.
+
 ### `run` — instantiate
 
 Takes the app tree and returns a callable interface. Calling any node resolves its current value. The return type mirrors the shape of the app tree.
@@ -232,6 +272,20 @@ const p2 = run({ [count]: 0, ... })
 p1.increment()
 p1.val()  // 1
 p2.val()  // 0  — unaffected
+```
+
+Call `dispose()` to tear down the program. All active watchers stop firing and their cleanup functions run:
+
+```ts
+const store = run({ ... })
+
+watch(store.total, total => {
+  const el = document.getElementById('total')!
+  el.textContent = String(total)
+  return () => el.textContent = ''   // cleanup runs on dispose
+})
+
+store.dispose()   // all watchers stopped, cleanups called
 ```
 
 ### `watch` — reactive subscription
