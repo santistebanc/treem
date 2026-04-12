@@ -75,8 +75,11 @@ document.body.innerHTML = `
     input[type=text]{border:1px solid #ddd;border-radius:8px;padding:.4rem .75rem;font-family:inherit;font-size:.85rem;flex:1;outline:none}
     input[type=text]:focus{border-color:#007aff}
     small{color:#aaa;font-size:.75rem}
+    .back{font-size:.8rem;color:#888;text-decoration:none;display:inline-block;margin-bottom:.25rem}
+    .back:hover{color:#111}
   </style>
   <div class="card">
+    <a class="back" href="../">← Examples</a>
     <h2>treem devtools demo</h2>
     <small>Open the devtool panel in the bottom-right corner.</small>
     <div class="row">

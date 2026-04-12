@@ -23,7 +23,7 @@ export function App() {
   return (
     <div style={styles.page}>
       <div style={styles.card}>
-        <a href="/" style={styles.back}>← Examples</a>
+        <a href="../" style={styles.back}>← Examples</a>
         <h1 style={styles.title}>Tasks</h1>
 
         {/* Input */}
