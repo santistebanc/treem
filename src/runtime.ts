@@ -1,9 +1,10 @@
-import { isObj, isNode, refSymbols, eventSymbols, emitEvent, subscribeEvent, VALUE, type UpdateNode, type EventChannel } from './nodes.js'
+import { isObj, isNode, refSymbols, eventSymbols, mapRefSymbols, mapEntryRegistry, emitEvent, subscribeEvent, VALUE, type UpdateNode, type EventChannel, type RecordNode } from './nodes.js'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Def { formula: any; value: any; scope: Scope; deps: Set<Def> }
-interface Scope { parent: Scope | null; defs: Map<symbol, Def>; children: Record<string, any>; valueNode?: any }
+interface MapStore { rawMap: Map<any, any>; wholeDef: Def; keyDefs: Map<any, Def> }
+interface Scope { parent: Scope | null; defs: Map<symbol, Def>; mapStores: Map<symbol, MapStore>; children: Record<string, any>; valueNode?: any }
 type Cleanup = (prev: any, next: any) => void
 type CleanupResult = (() => void) | void
 interface Watcher { deps: Set<Def>; track: (subs?: Map<Def, Set<Def | Watcher>>) => any; cb: (value: any, prev?: any) => CleanupResult; last: any; cleanup: Cleanup | undefined }
@@ -20,8 +21,15 @@ export interface Watchable<T> {
 // should be exposed. We detect this by checking whether U's values carry __exprType.
 type IsNodeObject<U> = [U] extends [Record<string, { readonly __exprType: any }>] ? true : false
 
+type RecordProgram<K, V> = {
+  (): V[]
+  (key: K): Watchable<V | undefined>
+  readonly [SUBSCRIBE]: (cb: (value: V[], prev?: V[]) => any) => () => void
+}
+
 type ProgramNodeOf<T> =
   T extends UpdateNode<infer Args> ? (...args: Args) => void :
+  T extends RecordNode<infer K, infer V> ? RecordProgram<K, V> :
   T extends { readonly __exprType: infer U } ?
     Watchable<U> & (IsNodeObject<U> extends true ? { [K in Extract<keyof U, string>]: ProgramNodeOf<U[K]> } : {}) :
   T extends readonly any[] ? Array<ProgramNodeOf<T[number]>> & Watchable<any> :
@@ -73,14 +81,21 @@ export function run<T extends object>(app: T): ProgramOf<T> {
   }
 
   function build(tree: object, parent: Scope | null): Scope {
-    const scope: Scope = { parent, defs: new Map(), children: {} }
+    const scope: Scope = { parent, defs: new Map(), mapStores: new Map(), children: {} }
     scopes.add(scope)
     for (const sym of Object.getOwnPropertySymbols(tree)) {
       if (sym === VALUE) { scope.valueNode = (tree as any)[sym]; continue }
-      if (!refSymbols.has(sym)) continue
-      const def: Def = { formula: (tree as any)[sym], value: undefined, scope, deps: new Set() }
-      scope.defs.set(sym, def)
-      allDefs.push(def)
+      if (mapRefSymbols.has(sym)) {
+        const init = (tree as any)[sym]
+        const entries: [any, any][] = Array.isArray(init) ? init : Object.entries(init ?? {})
+        const rawMap = new Map(entries)
+        const wholeDef: Def = { formula: null, value: [...rawMap.values()], scope, deps: new Set() }
+        scope.mapStores.set(sym, { rawMap, wholeDef, keyDefs: new Map() })
+      } else if (refSymbols.has(sym)) {
+        const def: Def = { formula: (tree as any)[sym], value: undefined, scope, deps: new Set() }
+        scope.defs.set(sym, def)
+        allDefs.push(def)
+      }
     }
     for (const key of Object.keys(tree)) {
       scope.children[key] = buildNode((tree as any)[key], scope)
@@ -93,6 +108,11 @@ export function run<T extends object>(app: T): ProgramOf<T> {
       if (s.defs.has(sym)) return s.defs.get(sym)
   }
 
+  function findMapStore(sym: symbol, scope: Scope): MapStore | undefined {
+    for (let s: Scope | null = scope; s; s = s.parent)
+      if (s.mapStores.has(sym)) return s.mapStores.get(sym)
+  }
+
   function eval_(node: any, scope: Scope): any {
     if (!isNode(node)) return node
     switch (node.type) {
@@ -103,6 +123,28 @@ export function run<T extends object>(app: T): ProgramOf<T> {
         return def?.value
       }
       case 'arg': return currentArgs[node.index]
+      case 'record': {
+        const ms = findMapStore(node.sym, scope)
+        if (!ms) return []
+        if (tracking) tracking.deps.add(ms.wholeDef)
+        if (watchTracking) watchTracking.deps.add(ms.wholeDef)
+        return ms.wholeDef.value
+      }
+      case 'mapEntry': {
+        const entry = mapEntryRegistry.get(node.sym)
+        if (!entry) return undefined
+        const ms = findMapStore(entry.mapSym, scope)
+        if (!ms) return undefined
+        const key = eval_(entry.keyExpr, scope)
+        let kd = ms.keyDefs.get(key)
+        if (!kd) {
+          kd = { formula: null, value: ms.rawMap.get(key), scope, deps: new Set() }
+          ms.keyDefs.set(key, kd)
+        }
+        if (tracking) tracking.deps.add(kd)
+        if (watchTracking) watchTracking.deps.add(kd)
+        return kd.value
+      }
       case 'calc': return node.fn(...node.args.map((a: any) => eval_(a, scope)))
       case 'iff': return eval_(node.cond, scope) ? eval_(node.onTrue, scope) : eval_(node.onFalse, scope)
       case 'update': return (...args: any[]) => {
@@ -121,6 +163,21 @@ export function run<T extends object>(app: T): ProgramOf<T> {
               const argExprs: any[] = (node.assignments as any)[sym]
               const evaluated = argExprs.map((a: any) => eval_(a, scope))
               pendingEmissions.push([sym, evaluated])
+            } else if (mapEntryRegistry.has(sym)) {
+              const entry = mapEntryRegistry.get(sym)!
+              const ms = findMapStore(entry.mapSym, scope)
+              if (!ms) continue
+              const key = eval_(entry.keyExpr, scope)
+              const next = eval_((node.assignments as any)[sym], scope)
+              if (next === undefined) ms.rawMap.delete(key)
+              else ms.rawMap.set(key, next)
+              let kd = ms.keyDefs.get(key)
+              if (!kd) {
+                kd = { formula: null, value: undefined, scope, deps: new Set() }
+                ms.keyDefs.set(key, kd)
+              }
+              if (next !== kd.value) stateUpdates.push([kd, next])
+              stateUpdates.push([ms.wholeDef, [...ms.rawMap.values()]])
             }
           }
         } catch (err) {
@@ -253,6 +310,30 @@ export function run<T extends object>(app: T): ProgramOf<T> {
       const arr: any = node.map(item => callable(item, scope, subscribers))
       arr[SUBSCRIBE] = makeSubscribe(() => resolveNode(node, scope), subscribers)
       return arr
+    }
+    if (isNode(node) && node.type === 'record') {
+      const ms = findMapStore(node.sym, scope)!
+      const fn: any = (key?: any) => {
+        if (key === undefined) return ms.wholeDef.value
+        // Per-key watchable — created fresh each call, backed by the same Def
+        let kd = ms.keyDefs.get(key)
+        if (!kd) {
+          kd = { formula: null, value: ms.rawMap.get(key), scope, deps: new Set() }
+          ms.keyDefs.set(key, kd)
+        }
+        const captured = kd
+        const keyFn: any = () => captured.value
+        keyFn[SUBSCRIBE] = makeSubscribe(() => {
+          if (watchTracking) watchTracking.deps.add(captured)
+          return captured.value
+        }, subscribers)
+        return keyFn as Watchable<any>
+      }
+      fn[SUBSCRIBE] = makeSubscribe(() => {
+        if (watchTracking) watchTracking.deps.add(ms.wholeDef)
+        return ms.wholeDef.value
+      }, subscribers)
+      return fn
     }
     if (isScope(node)) {
       const fn: any = () => resolve(node)

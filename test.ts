@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { ref, calc, iff, update, arg, run, watch, type Expr } from './src/index'
+import { ref, calc, iff, update, arg, record, run, watch, type Expr } from './src/index'
 
 let passed = 0
 let failed = 0
@@ -1082,6 +1082,93 @@ test('dispose does not affect other run() instances', () => {
   p1.dispose()
   p2.inc()
   assert.equal(seen.length, 2)
+})
+
+// ─── record ──────────────────────────────────────────────────────────────────
+
+console.log('\nrecord')
+
+test('record initialises from array-of-pairs', () => {
+  type P = { name: string; score: number }
+  const players = record<string, P>('players')
+  const store = run({ [players]: [['alice', { name: 'Alice', score: 0 }]], players })
+  assert.deepEqual(store.players(), [{ name: 'Alice', score: 0 }])
+})
+
+test('whole-map calc recomputes when any entry changes', () => {
+  type P = { score: number }
+  const players = record<string, P>('players')
+  const store = run({
+    [players]: [],
+    players,
+    count: calc((ps: P[]) => ps.length, [players]),
+    addPlayer: update<[string, P]>({ [players(arg(0))]: arg(1) }),
+  })
+  assert.equal(store.count(), 0)
+  store.addPlayer('a', { score: 1 })
+  assert.equal(store.count(), 1)
+  store.addPlayer('b', { score: 2 })
+  assert.equal(store.count(), 2)
+})
+
+test('per-key watcher fires only when that entry changes', () => {
+  type P = { score: number }
+  const players = record<string, P>('players')
+  const store = run({
+    [players]: [['alice', { score: 0 }], ['bob', { score: 0 }]],
+    players,
+    addScore: update<[string, number]>({
+      [players(arg(0))]: calc(
+        (p: P | undefined, n: number) => p ? { score: p.score + n } : p,
+        [players(arg(0)), arg(1)]
+      ),
+    }),
+  })
+  const aliceSeen: any[] = [], bobSeen: any[] = []
+  watch(store.players('alice'), v => void aliceSeen.push(v))
+  watch(store.players('bob'),   v => void bobSeen.push(v))
+  store.addScore('alice', 5)
+  assert.equal(aliceSeen.length, 2)  // initial + update
+  assert.equal(bobSeen.length, 1)    // initial only — bob untouched
+  assert.deepEqual(aliceSeen[1], { score: 5 })
+})
+
+test('per-key watcher fires on add and resolves to undefined after delete', () => {
+  type P = { name: string }
+  const players = record<string, P>('players')
+  const store = run({
+    [players]: [],
+    players,
+    addPlayer:    update<[string, P]>({ [players(arg(0))]: arg(1) }),
+    removePlayer: update<[string]>({   [players(arg(0))]: undefined }),
+  })
+  const seen: any[] = []
+  watch(store.players('alice'), v => void seen.push(v))
+  store.addPlayer('alice', { name: 'Alice' })
+  store.removePlayer('alice')
+  assert.equal(seen.length, 3)          // undefined, { name: 'Alice' }, undefined
+  assert.deepEqual(seen[1], { name: 'Alice' })
+  assert.equal(seen[2], undefined)
+})
+
+test('whole-map watcher is unaffected by unrelated per-key changes', () => {
+  type P = { score: number }
+  const players = record<string, P>('players')
+  const store = run({
+    [players]: [['alice', { score: 0 }], ['bob', { score: 0 }]],
+    players,
+    addScore: update<[string, number]>({
+      [players(arg(0))]: calc(
+        (p: P | undefined, n: number) => p ? { score: p.score + n } : p,
+        [players(arg(0)), arg(1)]
+      ),
+    }),
+  })
+  const wholeSeen: any[] = []
+  watch(store.players, v => void wholeSeen.push(v))
+  store.addScore('alice', 1)
+  store.addScore('bob',   1)
+  assert.equal(wholeSeen.length, 3)  // initial + 2 updates
 })
 
 // ─── summary ─────────────────────────────────────────────────────────────────

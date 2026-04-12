@@ -1,13 +1,16 @@
 export const isObj = (x: unknown): x is Record<string | symbol, any> =>
   typeof x === 'object' && x !== null && !Array.isArray(x)
 
+export const isFn = (x: unknown): x is Record<string | symbol, any> =>
+  typeof x === 'function'
+
 const NODE = Symbol('node')
 export const VALUE = Symbol('value')
 export const refSymbols = new Set<symbol>()
 export const eventSymbols = new Set<symbol>()
 const eventRegistry = new Map<symbol, Set<(...args: any[]) => void>>()
 
-export const isNode = (x: unknown) => isObj(x) && (x as any)[NODE] === true
+export const isNode = (x: unknown) => (isObj(x) || isFn(x)) && (x as any)[NODE] === true
 const allKeys = (o: object): (string | symbol)[] =>
   (Object.keys(o) as (string | symbol)[]).concat(Object.getOwnPropertySymbols(o))
 const mark = <T extends object>(n: T) =>
@@ -109,4 +112,37 @@ export function update<Args extends any[] = []>(assignments: object): UpdateNode
 
 export function arg<T = unknown>(index: number): ArgNode<T> {
   return mark({ type: 'arg' as const, index }) as unknown as ArgNode<T>
+}
+
+// ─── Record ───────────────────────────────────────────────────────────────────
+
+export const mapRefSymbols = new Set<symbol>()
+export const mapEntryRegistry = new Map<symbol, { mapSym: symbol; keyExpr: any }>()
+
+export type RecordEntryNode<V = any> = symbol & { readonly __exprType: V | undefined; readonly __recordEntry: true }
+export type RecordNode<K = any, V = any> = symbol & {
+  readonly __exprType: V[]
+  readonly __recordNode: true
+  (keyExpr: Expr<K> | K): RecordEntryNode<V>
+}
+
+export function record<K = string, V = unknown>(name: string): RecordNode<K, V> {
+  const sym = Symbol(name)
+  mapRefSymbols.add(sym)
+
+  const node: any = function (keyExpr: any) {
+    const entrySym = Symbol(`${name}:entry`)
+    const descriptor = { type: 'mapEntry' as const, mapSym: sym, sym: entrySym, [Symbol.toPrimitive]: () => entrySym }
+    mark(descriptor)
+    mapEntryRegistry.set(entrySym, { mapSym: sym, keyExpr })
+    return descriptor as unknown as RecordEntryNode<V>
+  }
+
+  node.type = 'record'
+  node.recordName = name
+  node.sym = sym
+  node[Symbol.toPrimitive] = () => sym
+  mark(node)
+
+  return node as unknown as RecordNode<K, V>
 }
