@@ -409,7 +409,7 @@ section('arg')
 
 test('basic arg passing', () => {
   const x = ref<number>('x')
-  const p = run({ [x]: 0, val: calc(n => n, [x]), setX: update<[number]>({ [x]: arg<number>(0) }) })
+  const p = run({ [x]: 0, val: calc(n => n, [x]), setX: update<number>({ [x]: arg<number>(0) }) })
   p.setX(42)
   assert.equal(p.val(), 42)
 })
@@ -420,7 +420,7 @@ test('multiple args', () => {
   const p = run({
     [a]: 0, [b]: 0,
     va: calc(n => n, [a]), vb: calc(n => n, [b]),
-    setAB: update<[number, number]>({ [a]: arg<number>(0), [b]: arg<number>(1) })
+    setAB: update<number, number>({ [a]: arg<number>(0), [b]: arg<number>(1) })
   })
   p.setAB(10, 20)
   assert.equal(p.va(), 10)
@@ -432,7 +432,7 @@ test('arg used inside calc', () => {
   const p = run({
     [x]: 0,
     val: calc(n => n, [x]),
-    addN: update<[number]>({ [x]: calc((cur, n) => cur + n, [x, arg<number>(0)]) })
+    addN: update<number>({ [x]: calc((cur, n) => cur + n, [x, arg<number>(0)]) })
   })
   p.addN(5)
   assert.equal(p.val(), 5)
@@ -453,8 +453,8 @@ test('args are scoped to action call, do not leak', () => {
   const p = run({
     [a]: 0, [b]: 0,
     va: calc(n => n, [a]), vb: calc(n => n, [b]),
-    setA: update<[number]>({ [a]: arg<number>(0) }),
-    setB: update<[number]>({ [b]: arg<number>(0) }),
+    setA: update<number>({ [a]: arg<number>(0) }),
+    setB: update<number>({ [b]: arg<number>(0) }),
   })
   p.setA(10)
   p.setB(20)
@@ -910,7 +910,7 @@ test('arg inside iff inside update', () => {
   const p = run({
     [flag]: true, [x]: 0,
     val:    x,
-    assign: update<[number]>({ [x]: iff(flag, arg<number>(0), 0) }),
+    assign: update<number>({ [x]: iff(flag, arg<number>(0), 0) }),
   })
   p.assign(42)
   assert.equal(p.val(), 42)
@@ -952,7 +952,7 @@ test('arg inside calc inside update', () => {
   const p = run({
     [x]: 0,
     val:    x,
-    assign: update<[number]>({ [x]: iff(calc((n: number) => n > 0, [arg<number>(0)]), 1, -1) }),
+    assign: update<number>({ [x]: iff(calc((n: number) => n > 0, [arg<number>(0)]), 1, -1) }),
   })
   p.assign(5)
   assert.equal(p.val(), 1)
@@ -979,7 +979,7 @@ test('watch on event channel fires when emitted', () => {
 
 test('watch on event passes args to callback', () => {
   const selected = event<[string, number]>('selected')
-  const p = run({ select: update<[string, number]>({ [selected]: [arg<string>(0), arg<number>(1)] }) })
+  const p = run({ select: update<string, number>({ [selected]: [arg<string>(0), arg<number>(1)] }) })
   const seen: [string, number][] = []
   watch(selected, (label, idx) => void seen.push([label, idx]))
   p.select('foo', 3)
@@ -1001,7 +1001,7 @@ test('unsubscribe from event stops callbacks', () => {
 
 test('multiple event subscribers all fire', () => {
   const ev = event<[number]>('ev')
-  const p = run({ fire: update<[number]>({ [ev]: [arg<number>(0)] }) })
+  const p = run({ fire: update<number>({ [ev]: [arg<number>(0)] }) })
   const a: number[] = [], b: number[] = []
   watch(ev, n => void a.push(n))
   watch(ev, n => void b.push(n))
@@ -1016,7 +1016,7 @@ test('event emission happens after state updates', () => {
   const p = run({
     [x]: 0,
     val: x,
-    set: update<[number]>({ [x]: arg<number>(0), [changed]: [arg<number>(0)] }),
+    set: update<number>({ [x]: arg<number>(0), [changed]: [arg<number>(0)] }),
   })
   const emitted: number[] = []
   watch(changed, n => void emitted.push(n))
@@ -1102,7 +1102,7 @@ test('whole-map calc recomputes when any entry changes', () => {
     [players]: [],
     players,
     count: calc((ps: P[]) => ps.length, [players]),
-    addPlayer: update<[string, P]>({ [players(arg(0))]: arg(1) }),
+    addPlayer: update<string, P>({ [players(arg(0))]: arg(1) }),
   })
   assert.equal(store.count(), 0)
   store.addPlayer('a', { score: 1 })
@@ -1117,10 +1117,10 @@ test('per-key watcher fires only when that entry changes', () => {
   const store = run({
     [players]: [['alice', { score: 0 }], ['bob', { score: 0 }]],
     players,
-    addScore: update<[string, number]>({
+    addScore: update<string, number>({
       [players(arg(0))]: calc(
         (p: P | undefined, n: number) => p ? { score: p.score + n } : p,
-        [players(arg(0)), arg(1)]
+        [players(arg(0)), arg<number>(1)]
       ),
     }),
   })
@@ -1139,8 +1139,8 @@ test('per-key watcher fires on add and resolves to undefined after delete', () =
   const store = run({
     [players]: [],
     players,
-    addPlayer:    update<[string, P]>({ [players(arg(0))]: arg(1) }),
-    removePlayer: update<[string]>({   [players(arg(0))]: undefined }),
+    addPlayer:    update<string, P>({ [players(arg(0))]: arg(1) }),
+    removePlayer: update<string>({   [players(arg(0))]: undefined }),
   })
   const seen: any[] = []
   watch(store.players('alice'), v => void seen.push(v))
@@ -1157,10 +1157,10 @@ test('whole-map watcher is unaffected by unrelated per-key changes', () => {
   const store = run({
     [players]: [['alice', { score: 0 }], ['bob', { score: 0 }]],
     players,
-    addScore: update<[string, number]>({
+    addScore: update<string, number>({
       [players(arg(0))]: calc(
         (p: P | undefined, n: number) => p ? { score: p.score + n } : p,
-        [players(arg(0)), arg(1)]
+        [players(arg(0)), arg<number>(1)]
       ),
     }),
   })

@@ -42,7 +42,7 @@ const store = run({
   [qtyB]:   0,
 
   toggleTheme: update({ [isDark]: calc(d => !d, [isDark]) }),
-  applyCoupon: update<[string]>({
+  applyCoupon: update<string>({
     [coupon]: calc((code: string) => COUPONS[code] ?? 0, [arg<string>(0)]),
     [couponApplied]: [
       calc((code: string) => COUPONS[code] ?? 0, [arg<string>(0)]),

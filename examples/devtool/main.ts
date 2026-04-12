@@ -46,9 +46,9 @@ const store = run({
   toggleVis:  update({ [visible]: calc(v => !v, [visible]) }),
 
   // Actions with args
-  setStep:  update<[number]>({ [step]:  arg<number>(0) }),
-  setName:  update<[string]>({ [name]:  arg<string>(0) }),
-  addCount: update<[number]>({ [count]: calc((n: number, delta: number) => n + delta, [count, arg<number>(0)]) }),
+  setStep:  update<number>({ [step]:  arg<number>(0) }),
+  setName:  update<string>({ [name]:  arg<string>(0) }),
+  addCount: update<number>({ [count]: calc((n: number, delta: number) => n + delta, [count, arg<number>(0)]) }),
 
   // Nested scope
   nested: {
@@ -167,9 +167,9 @@ devtool(store, {
   reset:      update({ [count]: 0, [step]: 1 }),
   toggleDark: update({ [isDark]: calc(v => !v, [isDark]) }),
   toggleVis:  update({ [visible]: calc(v => !v, [visible]) }),
-  setStep:    update<[number]>({ [step]:  arg<number>(0) }),
-  setName:    update<[string]>({ [name]:  arg<string>(0) }),
-  addCount:   update<[number]>({ [count]: calc((n: number, delta: number) => n + delta, [count, arg<number>(0)]) }),
+  setStep:    update<number>({ [step]:  arg<number>(0) }),
+  setName:    update<string>({ [name]:  arg<string>(0) }),
+  addCount:   update<number>({ [count]: calc((n: number, delta: number) => n + delta, [count, arg<number>(0)]) }),
   nested: {
     [count]: 100,
     count,

@@ -106,8 +106,15 @@ export function iff(cond: any, onTrue: any, onFalse: any = undefined): any {
   return out
 }
 
-export function update<Args extends any[] = []>(assignments: object): UpdateNode<Args> {
-  return mark({ type: 'update' as const, assignments }) as unknown as UpdateNode<Args>
+export function update(assignments: object): UpdateNode<[]>
+export function update<A>(assignments: object): UpdateNode<[A]>
+export function update<A, B>(assignments: object): UpdateNode<[A, B]>
+export function update<A, B, C>(assignments: object): UpdateNode<[A, B, C]>
+export function update<A, B, C, D>(assignments: object): UpdateNode<[A, B, C, D]>
+export function update<A, B, C, D, E>(assignments: object): UpdateNode<[A, B, C, D, E]>
+export function update<A, B, C, D, E, F>(assignments: object): UpdateNode<[A, B, C, D, E, F]>
+export function update(assignments: object): UpdateNode<any> {
+  return mark({ type: 'update' as const, assignments }) as unknown as UpdateNode<any>
 }
 
 export function arg<T = unknown>(index: number): ArgNode<T> {

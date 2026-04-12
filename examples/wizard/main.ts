@@ -37,8 +37,8 @@ const wizard = run({
 
   // ── Step 1: personal details ──────────────────────────────────────────────────
   details: {
-    setName:  update<[string]>({ [name]:  arg<string>(0) }),
-    setEmail: update<[string]>({ [email]: arg<string>(0) }),
+    setName:  update<string>({ [name]:  arg<string>(0) }),
+    setEmail: update<string>({ [email]: arg<string>(0) }),
 
     errors: {
       name:  iff(nameOk,  '', 'Name is required'),
@@ -62,7 +62,7 @@ const wizard = run({
     cta:       'Get started',
   }),
 
-  setPlan: update<['free' | 'pro']>({ [plan]: arg<'free' | 'pro'>(0) }),
+  setPlan: update<'free' | 'pro'>({ [plan]: arg<'free' | 'pro'>(0) }),
 
   // ── Step 3: review ────────────────────────────────────────────────────────────
   agree:    update({ [agreed]: true }),

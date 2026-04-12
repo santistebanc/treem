@@ -28,9 +28,9 @@ export const store = run({
   remaining,
   hasAnyDone,
 
-  add:       update<[string]>({ [todos]: calc((list, text) => [...list, { id: Date.now(), text, done: false }], [todos, arg<string>(0)]) }),
-  toggle:    update<[number]>({ [todos]: calc((list, id) => list.map(t => t.id === id ? { ...t, done: !t.done } : t), [todos, arg<number>(0)]) }),
-  remove:    update<[number]>({ [todos]: calc((list, id) => list.filter(t => t.id !== id), [todos, arg<number>(0)]) }),
+  add:       update<string>({ [todos]: calc((list, text) => [...list, { id: Date.now(), text, done: false }], [todos, arg<string>(0)]) }),
+  toggle:    update<number>({ [todos]: calc((list, id) => list.map(t => t.id === id ? { ...t, done: !t.done } : t), [todos, arg<number>(0)]) }),
+  remove:    update<number>({ [todos]: calc((list, id) => list.filter(t => t.id !== id), [todos, arg<number>(0)]) }),
   clearDone: update({ [todos]: calc(list => list.filter(t => !t.done), [todos]) }),
-  setFilter: update<[Filter]>({ [filter]: arg<Filter>(0) }),
+  setFilter: update<Filter>({ [filter]: arg<Filter>(0) }),
 })

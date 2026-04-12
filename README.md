@@ -37,7 +37,7 @@ const app = run({
   [lang]:  'en',
 
   toggleTheme: update({ [theme]: iff(isLight, 'dark', 'light') }),
-  updateLang:     update<['en' | 'es']>({ [lang]: arg<'en' | 'es'>(0) }),
+  updateLang:     update<'en' | 'es'>({ [lang]: arg<'en' | 'es'>(0) }),
 
   // iff over objects distributes key-by-key — each key is its own reactive node
   ui: iff(isDark, {
@@ -212,9 +212,9 @@ const price = ref<number>('price')
 
 const app = {
   [price]: 10,
-  updatePrice:   update<[number]>({ [price]: arg<number>(0) }),
-  addToPrice: update<[number]>({ [price]: calc((p, n) => p + n, [price, arg<number>(0)]) }),
-  updateRange:   update<[number, number]>({ [min]: arg<number>(0), [max]: arg<number>(1) }),
+  updatePrice:   update<number>({ [price]: arg<number>(0) }),
+  addToPrice: update<number>({ [price]: calc((p, n) => p + n, [price, arg<number>(0)]) }),
+  updateRange:   update<number, number>({ [min]: arg<number>(0), [max]: arg<number>(1) }),
 }
 
 const store = run(app)
@@ -241,7 +241,7 @@ const store = run({
 
   // State mutation and event emission happen in the same update call.
   // All state updates apply first, then events fire.
-  add: update<[string, number]>({
+  add: update<string, number>({
     [itemCount]: calc((n, qty) => n + qty, [itemCount, arg<number>(1)]),
     [itemAdded]: [arg<string>(0), arg<number>(1)],
   }),
@@ -295,14 +295,14 @@ const store = run({
   topScore: calc((ps: Player[]) => Math.max(0, ...ps.map(p => p.score)), [players]),
 
   // Actions
-  addPlayer:    update<[string, Player]>({ [players(arg(0))]: arg(1) }),
-  removePlayer: update<[string]>({         [players(arg(0))]: undefined }),
+  addPlayer:    update<string, Player>({ [players(arg(0))]: arg(1) }),
+  removePlayer: update<string>({         [players(arg(0))]: undefined }),
 
   // Merge — read the current entry as a dep in the calc
-  addScore: update<[string, number]>({
+  addScore: update<string, number>({
     [players(arg(0))]: calc(
       (p: Player | undefined, n: number) => p ? { ...p, score: p.score + n } : p,
-      [players(arg(0)), arg(1)]
+      [players(arg(0)), arg<number>(1)]
     ),
   }),
 })
@@ -327,7 +327,7 @@ store.addScore('alice', 10)
 Setting an entry to `undefined` deletes it:
 
 ```ts
-removePlayer: update<[string]>({ [players(arg(0))]: undefined })
+removePlayer: update<string>({ [players(arg(0))]: undefined })
 ```
 
 ### `run` — instantiate
@@ -426,7 +426,7 @@ const app = {
   [name]: 'Guest',                            // mutable state
 
   greeting: calc(n => `Hello, ${n}!`, [name]),   // derived value
-  rename: update<[string]>({ [name]: arg<string>(0) }), // parameterized action
+  rename: update<string>({ [name]: arg<string>(0) }), // parameterized action
 
   cart: {                                        // nested scope
     [qty]: 0,
@@ -604,8 +604,8 @@ const wizard = run({
 
   // ── Step 1: personal details ─────────────────────────────────────────────────
   details: {
-    updateName:  update<[string]>({ [name]:  arg<string>(0) }),
-    updateEmail: update<[string]>({ [email]: arg<string>(0) }),
+    updateName:  update<string>({ [name]:  arg<string>(0) }),
+    updateEmail: update<string>({ [email]: arg<string>(0) }),
 
     errors: {
       name:  iff(nameOk,  '',          'Name is required'),
@@ -629,7 +629,7 @@ const wizard = run({
     cta:       'Get started',
   }),
 
-  updatePlan: update<['free' | 'pro']>({ [plan]:   arg<'free' | 'pro'>(0) }),
+  updatePlan: update<'free' | 'pro'>({ [plan]:   arg<'free' | 'pro'>(0) }),
   agree:   update({ [agreed]: true }),
   // submit emits the event with the collected form data — state is not mutated
   submit:  update({

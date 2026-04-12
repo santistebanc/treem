@@ -65,14 +65,14 @@ type Player = { name: string; score: number; answered: boolean; answer: string }
 //   myPlayer: calc(p => p, [players.entry(myId)]),
 //
 //   // ── Actions ───────────────────────────────────────────────────────────────
-//   addPlayer:    update<[string, Player]>({ [players]: mapSet(arg(0), arg(1)) }),
-//   removePlayer: update<[string]>({         [players]: mapDelete(arg(0)) }),
+//   addPlayer:    update<string, Player>({ [players]: mapSet(arg(0), arg(1)) }),
+//   removePlayer: update<string>({         [players]: mapDelete(arg(0)) }),
 //
 //   // Shallow-merge: only updates the entry's changed fields
-//   setAnswer: update<[string, string]>({
+//   setAnswer: update<string, string>({
 //     [players]: mapMerge(arg(0), { answered: true, answer: arg(1) }),
 //   }),
-//   addScore: update<[string, number]>({
+//   addScore: update<string, number>({
 //     [players]: mapMerge(arg(0), calc((p, n) => ({ score: p.score + n }), [players.entry(arg(0)), arg(1)])),
 //   }),
 // })
@@ -137,9 +137,9 @@ const players = record<string, Player>('players')
 
 const store = {
   [players]: [],
-  addPlayer: update<[string, Player]>({ [players(arg(0))]: arg(1) }),
-  removePlayer: update<[string]>({ [players(arg(0))]: undefined }),
-  addScore: update<[string, number]>({
+  addPlayer: update<string, Player>({ [players(arg(0))]: arg(1) }),
+  removePlayer: update<string>({ [players(arg(0))]: undefined }),
+  addScore: update<string, number>({
     [players(arg(0))]: calc(
       (p, n) => ({ ...p, score: p.score + n }),
       [players(arg(0)), arg(1)]   // players(arg(0)) as a calc dep reads the current entry

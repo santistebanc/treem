@@ -33,16 +33,16 @@ export const store = run({
   query, status, users, errorMsg,
   isLoading, isSuccess, isError, isEmpty,
 
-  setQuery: update<[string]>({ [query]: arg<string>(0) }),
+  setQuery: update<string>({ [query]: arg<string>(0) }),
 
   // State transitions — driven by the async layer, not directly by the UI
   reset:        update({ [status]: 'idle'    as Status, [users]: [] as User[], [errorMsg]: '' }),
   startLoading: update({ [status]: 'loading' as Status, [users]: [] as User[], [errorMsg]: '' }),
-  setResults:   update<[User[], string]>({
+  setResults:   update<User[], string>({
     [status]: 'success' as Status,
     [users]:  arg<User[]>(0),
     [searched]: [arg<string>(1), calc(u => u.length, [arg<User[]>(0)])],
   }),
-  setError: update<[string]>({ [status]: 'error' as Status, [errorMsg]: arg<string>(0) }),
+  setError: update<string>({ [status]: 'error' as Status, [errorMsg]: arg<string>(0) }),
 })
 
