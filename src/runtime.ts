@@ -163,6 +163,28 @@ export function run<T extends object>(app: T): ProgramOf<T> {
               const argExprs: any[] = (node.assignments as any)[sym]
               const evaluated = argExprs.map((a: any) => eval_(a, scope))
               pendingEmissions.push([sym, evaluated])
+            } else if (mapRefSymbols.has(sym)) {
+              const ms = findMapStore(sym, scope)
+              if (!ms) continue
+              const next = eval_((node.assignments as any)[sym], scope)
+              const entries: [any, any][] = Array.isArray(next) ? next : Object.entries(next ?? {})
+              const newMap = new Map(entries)
+              // Diff: update/delete per-key Defs for changed keys only
+              const allKeys = new Set([...ms.rawMap.keys(), ...newMap.keys()])
+              for (const key of allKeys) {
+                const prev = ms.rawMap.get(key)
+                const val  = newMap.get(key)
+                if (val === prev) continue
+                let kd = ms.keyDefs.get(key)
+                if (!kd) {
+                  kd = { formula: null, value: undefined, scope, deps: new Set() }
+                  ms.keyDefs.set(key, kd)
+                }
+                stateUpdates.push([kd, val])
+              }
+              ms.rawMap.clear()
+              for (const [k, v] of newMap) ms.rawMap.set(k, v)
+              stateUpdates.push([ms.wholeDef, [...ms.rawMap.values()]])
             } else if (mapEntryRegistry.has(sym)) {
               const entry = mapEntryRegistry.get(sym)!
               const ms = findMapStore(entry.mapSym, scope)

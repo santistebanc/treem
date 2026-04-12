@@ -1173,5 +1173,56 @@ test('whole-map watcher is unaffected by unrelated per-key changes', () => {
 
 // ─── summary ─────────────────────────────────────────────────────────────────
 
+test('bulk update replaces whole map and triggers single propagation', () => {
+  type P = { score: number; answered: boolean }
+  const players = record<string, P>('players')
+  const store = run({
+    [players]: [['a', { score: 10, answered: true }], ['b', { score: 5, answered: true }]],
+    players,
+    answered: calc((ps: P[]) => ps.every(p => p.answered), [players]),
+    // Bulk reset — replaces whole map
+    resetRound: update({
+      [players]: calc(
+        (ps: P[]) => ps.map((p, i) => [['a', 'b'][i], { ...p, score: 0, answered: false }]),
+        [players]
+      ),
+    }),
+  })
+
+  const wholeFires: number[] = []
+  watch(store.players, ps => void wholeFires.push(ps.length))
+
+  assert.equal(store.answered(), true)
+  store.resetRound()
+  assert.equal(store.answered(), false)
+  assert.deepEqual(store.players().map(p => p.score), [0, 0])
+  // Whole-map watcher fired exactly twice: initial + one bulk update
+  assert.equal(wholeFires.length, 2)
+})
+
+test('bulk update diffs entries — only changed per-key watchers fire', () => {
+  type P = { score: number }
+  const players = record<string, P>('players')
+  const aliceObj = { score: 10 }
+  const store = run({
+    [players]: [['alice', aliceObj], ['bob', { score: 5 }]],
+    players,
+    setAll: update<[string, P][]>({
+      [players]: arg<[string, P][]>(0),
+    }),
+  })
+
+  const aliceSeen: any[] = [], bobSeen: any[] = []
+  watch(store.players('alice'), v => void aliceSeen.push(v))
+  watch(store.players('bob'),   v => void bobSeen.push(v))
+
+  // Replace map — alice is the same reference, bob gets new score
+  store.setAll([['alice', aliceObj], ['bob', { score: 99 }]])
+
+  assert.equal(aliceSeen.length, 1)  // initial only — alice reference unchanged
+  assert.equal(bobSeen.length, 2)    // initial + update
+  assert.deepEqual(bobSeen[1], { score: 99 })
+})
+
 console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed`)
 process.exit(failed > 0 ? 1 : 0)
