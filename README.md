@@ -471,26 +471,62 @@ watch(store.tabs, tabs => console.log('tabs:', tabs))
 
 Each nested object is a scope. A ref defined with `[ref]: value` is local to that scope and its descendants.
 
-**A ref formula may only read from refs defined in ancestor scopes — not siblings.** This keeps the dependency graph acyclic and ensures correct update ordering.
+### Ref-key formulas vs string-key children
+
+There are two ways to place a value in the tree, and they have different visibility rules:
+
+**`[ref]: formula`** — defines a ref slot. Its formula may only read refs from **ancestor scopes**, not siblings at the same level. Declaration order of ref slots in the same object does not matter.
+
+**`key: expr`** — a plain output value (derived value, action, nested scope). It can read refs from **the same scope and all ancestor scopes**.
+
+```ts
+const count  = ref<number>('count')
+const total  = ref<number>('total')
+
+const app = run({
+  [count]: 5,
+
+  // ✅ string-key child — reads same-scope ref, declaration order irrelevant
+  doubled: calc(n => n * 2, [count]),   // → 10
+
+  // ❌ ref-key formula — cannot see sibling ref [count], resolves to undefined
+  [total]: calc(n => n * 2, [count]),   // → undefined
+})
+```
+
+The practical rule: **define refs with plain initial values; put all derived expressions as string-key children or outside the tree.**
+
+```ts
+// ✅ idiomatic — refs initialized with literals, derivations as string keys or outside
+const doubled = calc(n => n * 2, [count])
+
+run({
+  [count]: 0,
+  doubled,          // string-key child — sees count ✓
+  inc: update({ [count]: calc(n => n + 1, [count]) }),
+})
+```
+
+### Ancestor visibility
+
+A ref defined in a parent scope is visible to all descendant scopes. The nearest ancestor definition wins (shadowing):
 
 ```ts
 const price = ref<number>('price')
 const qty   = ref<number>('qty')
 
 const app = {
-  [price]: 9.99,           // root price
+  [price]: 9.99,
 
   regular: {
     [qty]: 0,
-    total: calc((p, q) => p * q, [price, qty]),  // reads ancestor price ✓
-    add:   update(() => ({ [qty]: calc(q => q + 1, [qty]) })),
+    total: calc((p, q) => p * q, [price, qty]),  // ancestor price ✓
   },
 
   sale: {
-    [price]: 4.99,         // overrides price for this scope only
+    [price]: 4.99,         // shadows root price for this scope only
     [qty]: 0,
-    total: calc((p, q) => p * q, [price, qty]),  // uses the overridden price ✓
-    add:   update(() => ({ [qty]: calc(q => q + 1, [qty]) })),
+    total: calc((p, q) => p * q, [price, qty]),  // uses 4.99 ✓
   },
 }
 ```

@@ -45,6 +45,19 @@ let tracking: Def | null = null
 let watchTracking: Watcher | null = null
 let currentArgs: any[] = []
 
+// ─── Calc result cache ────────────────────────────────────────────────────────
+// Active during a single read (user call or watcher track). Deduplicates calc
+// nodes that appear more than once in the same evaluation tree.
+
+const NULL_SCOPE_KEY: object = Object.create(null)
+let calcCache: WeakMap<object, WeakMap<object, any>> | null = null
+
+function withCache<T>(fn: () => T): T {
+  if (calcCache) return fn()           // already inside a cached context — reuse
+  calcCache = new WeakMap()
+  try { return fn() } finally { calcCache = null }
+}
+
 // ─── Subscriber index helpers ─────────────────────────────────────────────────
 
 type Subscriber = Def | Watcher
@@ -116,17 +129,17 @@ export function run<T extends object>(app: T): ProgramOf<T> {
     return { ...(obj ?? {}), [key]: setAtPath(obj?.[key], rest, value) }
   }
 
-  function findDef(sym: symbol, scope: Scope): Def | undefined {
+  function findDef(sym: symbol, scope: Scope | null): Def | undefined {
     for (let s: Scope | null = scope; s; s = s.parent)
       if (s.defs.has(sym)) return s.defs.get(sym)
   }
 
-  function findMapStore(sym: symbol, scope: Scope): MapStore | undefined {
+  function findMapStore(sym: symbol, scope: Scope | null): MapStore | undefined {
     for (let s: Scope | null = scope; s; s = s.parent)
       if (s.mapStores.has(sym)) return s.mapStores.get(sym)
   }
 
-  function eval_(node: any, scope: Scope): any {
+  function eval_(node: any, scope: Scope | null): any {
     if (!isNode(node)) return node
     switch (node[TYPE]) {
       case 'ref': {
@@ -151,7 +164,7 @@ export function run<T extends object>(app: T): ProgramOf<T> {
         const key = eval_(entry.keyExpr, scope)
         let kd = ms.keyDefs.get(key)
         if (!kd) {
-          kd = { formula: null, value: ms.rawMap.get(key), scope, deps: new Set() }
+          kd = { formula: null, value: ms.rawMap.get(key), scope: ms.wholeDef.scope, deps: new Set() }
           ms.keyDefs.set(key, kd)
         }
         if (tracking) tracking.deps.add(kd)
@@ -169,7 +182,18 @@ export function run<T extends object>(app: T): ProgramOf<T> {
         }
         return val
       }
-      case 'calc': return node[FN](...node[ARGS].map((a: any) => eval_(a, scope)))
+      case 'calc': {
+        if (calcCache) {
+          const scopeKey: object = scope ?? NULL_SCOPE_KEY
+          let inner = calcCache.get(node)
+          if (inner?.has(scopeKey)) return inner.get(scopeKey)
+          const result = node[FN](...node[ARGS].map((a: any) => eval_(a, scope)))
+          if (!inner) { inner = new WeakMap(); calcCache.set(node, inner) }
+          inner.set(scopeKey, result)
+          return result
+        }
+        return node[FN](...node[ARGS].map((a: any) => eval_(a, scope)))
+      }
       case 'iff': return eval_(node[COND], scope) ? eval_(node[ON_TRUE], scope) : eval_(node[ON_FALSE], scope)
       case 'update': return (...args: any[]) => {
         const prevArgs = currentArgs
@@ -201,10 +225,10 @@ export function run<T extends object>(app: T): ProgramOf<T> {
                 if (val === prev) continue
                 let kd = ms.keyDefs.get(key)
                 if (!kd) {
-                  kd = { formula: null, value: undefined, scope, deps: new Set() }
+                  kd = { formula: null, value: undefined, scope: ms.wholeDef.scope, deps: new Set() }
                   ms.keyDefs.set(key, kd)
                 }
-                stateUpdates.push([kd, val])
+                stateUpdates.push([kd!, val])
               }
               ms.rawMap.clear()
               for (const [k, v] of newMap) ms.rawMap.set(k, v)
@@ -227,10 +251,10 @@ export function run<T extends object>(app: T): ProgramOf<T> {
               else ms.rawMap.set(key, next)
               let kd = ms.keyDefs.get(key)
               if (!kd) {
-                kd = { formula: null, value: undefined, scope, deps: new Set() }
+                kd = { formula: null, value: undefined, scope: ms.wholeDef.scope, deps: new Set() }
                 ms.keyDefs.set(key, kd)
               }
-              if (next !== kd.value) stateUpdates.push([kd, next])
+              if (next !== kd!.value) stateUpdates.push([kd!, next])
               stateUpdates.push([ms.wholeDef, [...ms.rawMap.values()]])
             }
           }
@@ -253,7 +277,7 @@ export function run<T extends object>(app: T): ProgramOf<T> {
     def.deps = new Set()
     tracking = def
     try {
-      const next = eval_(def.formula, def.scope)
+      const next = eval_(def.formula, def.scope.parent)
       // Update the reverse-dep index: remove from old deps, add to new deps
       removeSubs(subscribers, oldDeps, def)
       for (const dep of def.deps) addSub(subscribers, dep, def)
@@ -332,7 +356,7 @@ export function run<T extends object>(app: T): ProgramOf<T> {
           const prev = watchTracking
           watchTracking = w
           try {
-            const result = getValue()
+            const result = withCache(() => getValue())
             // Update reverse-dep index for the watcher
             const s = subs ?? subscribers
             removeSubs(s, oldDeps, w)
@@ -390,13 +414,13 @@ export function run<T extends object>(app: T): ProgramOf<T> {
       return fn
     }
     if (isScope(node)) {
-      const fn: any = () => resolve(node)
+      const fn: any = () => withCache(() => resolve(node))
       for (const [k, child] of Object.entries(node.children))
         Object.defineProperty(fn, k, { value: callable(child, node, subscribers), writable: true, configurable: true, enumerable: true })
       fn[SUBSCRIBE] = makeSubscribe(() => resolve(node), subscribers)
       return fn
     }
-    const fn: any = (...args: any[]) => { const v = eval_(node, scope); return typeof v === 'function' ? v(...args) : v }
+    const fn: any = (...args: any[]) => { const v = withCache(() => eval_(node, scope)); return typeof v === 'function' ? v(...args) : v }
     fn[SUBSCRIBE] = makeSubscribe(() => eval_(node, scope), subscribers)
     return fn
   }

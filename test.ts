@@ -391,11 +391,10 @@ test('update with same value skips propagation', () => {
 
 test('update cascade: changing one ref updates dependents', () => {
   const x = ref<number>('x')
-  const y = ref<number>('y')
+  const y = calc(n => n * 3, [x])
   const p = run({
     [x]: 2,
-    [y]: calc(n => n * 3, [x]),
-    valY: calc(n => n, [y]),
+    valY: y,
     incX: update({ [x]: calc(n => n + 1, [x]) })
   })
   assert.equal(p.valY(), 6)
@@ -529,6 +528,56 @@ test('deeply nested action sets correct scope ref', () => {
   p.a.b.reset()
   assert.equal(p.rootVal(), 0)
   assert.equal(p.a.b.childVal(), 0)
+})
+
+// ref-key vs string-key scoping rules
+
+test('string-key child can read same-scope ref', () => {
+  const count = ref<number>('count')
+  const p = run({ [count]: 5, doubled: calc(n => n * 2, [count]) })
+  assert.equal(p.doubled(), 10)
+})
+
+test('string-key child reads same-scope ref regardless of declaration order', () => {
+  const count = ref<number>('count')
+  // doubled declared before [count] — must still resolve correctly
+  const p = run({ doubled: calc(n => n * 2, [count]), [count]: 5 })
+  assert.equal(p.doubled(), 10)
+})
+
+test('ref-key formula cannot read sibling ref-key — count invisible, resolves to undefined', () => {
+  const count   = ref<number>('count')
+  const doubled = ref<number>('doubled')
+  const p = run({ [count]: 5, [doubled]: calc(n => String(n), [count]), val: calc(n => n, [doubled]) })
+  // doubled's formula reads count but count is a sibling ref-key — invisible, receives undefined
+  assert.equal(p.val(), 'undefined')
+})
+
+test('ref-key formula can read ref from parent scope', () => {
+  const base   = ref<number>('base')
+  const factor = ref<number>('factor')
+  const p = run({
+    [base]: 10,
+    child: {
+      [factor]: calc(b => b * 2, [base]),  // factor formula reads base from parent ✓
+      val: calc(f => f, [factor]),
+    }
+  })
+  assert.equal(p.child.val(), 20)
+})
+
+test('string-key child stays reactive to same-scope ref after update', () => {
+  const count = ref<number>('count')
+  const p = run({
+    [count]: 0,
+    doubled: calc(n => n * 2, [count]),
+    inc: update({ [count]: calc(n => n + 1, [count]) }),
+  })
+  assert.equal(p.doubled(), 0)
+  p.inc()
+  assert.equal(p.doubled(), 2)
+  p.inc()
+  assert.equal(p.doubled(), 4)
 })
 
 // ─── reactivity ──────────────────────────────────────────────────────────────
@@ -933,12 +982,10 @@ test('watch on a single key of a distributed iff', () => {
 
 test('chain of reactive ref formulas — cascade through two resets', () => {
   const x = ref<number>('x')
-  const y = ref<number>('y')
-  const z = ref<number>('z')
+  const y = calc(n => n * 2, [x])
+  const z = calc(n => n + 10, [y])
   const p = run({
     [x]: 1,
-    [y]: calc(n => n * 2, [x]),
-    [z]: calc(n => n + 10, [y]),
     val:  z,
     incX: update({ [x]: calc(n => n + 1, [x]) }),
   })
