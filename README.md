@@ -2,6 +2,8 @@
 
 A small declarative state management library. You describe your app as a plain object tree — state, derived values, and actions — then call `run()` to get a live, callable interface.
 
+![The Brew Shop example: a cart with quantities, coupon code and totals next to the treem source that defines it](docs/brew-shop.png)
+
 ## Examples
 
 Live demos hosted on GitHub Pages:
