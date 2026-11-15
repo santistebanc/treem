@@ -17,7 +17,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "prepare": "npm run build",
-    "test": "npx tsc -p tsconfig.test.json --noEmit && npx tsx test.ts"
+    "test": "npx tsc -p tsconfig.test.json --noEmit && npx tsc -p docs/examples/tsconfig.json --noEmit && npx tsx test.ts",
+    "examples": "npx tsx --tsconfig docs/examples/tsconfig.json docs/examples/counter.ts && npx tsx --tsconfig docs/examples/tsconfig.json docs/examples/theme.ts && npx tsx --tsconfig docs/examples/tsconfig.json docs/examples/cart.ts"
   },
   "keywords": [
     "state",
